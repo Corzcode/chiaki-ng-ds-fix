@@ -155,6 +155,17 @@ void QmlSettings::setHapticsAntiLatency(bool enabled)
     emit hapticsAntiLatencyChanged();
 }
 
+int QmlSettings::hapticsAntiLatencyMs() const
+{
+    return settings->GetHapticsAntiLatencyMs();
+}
+
+void QmlSettings::setHapticsAntiLatencyMs(int ms)
+{
+    settings->SetHapticsAntiLatencyMs(ms);
+    emit hapticsAntiLatencyMsChanged();
+}
+
 int QmlSettings::audioVideoDisabled() const
 {
     return static_cast<int>(settings->GetAudioVideoDisabled());
@@ -1855,6 +1866,7 @@ void QmlSettings::refreshAllKeys()
     emit hapticOverrideChanged();
     emit ds5GyroFixChanged();
     emit hapticsAntiLatencyChanged();
+    emit hapticsAntiLatencyMsChanged();
     emit rumbleHapticsIntensityChanged();
     emit buttonsByPositionChanged();
     emit allowJoystickBackgroundEventsChanged();

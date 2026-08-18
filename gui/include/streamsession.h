@@ -98,6 +98,8 @@ typedef struct haptic_packet_t
 		float haptic_override;
 		ChiakiDisableAudioVideo audio_video_disabled;
 		RumbleHapticsIntensity rumble_haptics_intensity;
+		bool haptics_anti_latency;
+		int haptics_anti_latency_ms;
 		bool buttons_by_pos;
 		bool enable_idr_on_fec_failure;
 		bool start_mic_unmuted;
@@ -269,6 +271,7 @@ class StreamSession : public QObject
 		bool audio_out_drain_requested = false;
 		size_t haptics_buffer_size;
 		bool haptics_anti_latency;
+		int haptics_anti_latency_ms;
 		unsigned int audio_buffer_size;
 		ChiakiHolepunchSession holepunch_session;
 #if CHIAKI_GUI_ENABLE_SPEEX
