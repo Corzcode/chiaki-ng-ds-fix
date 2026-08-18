@@ -358,6 +358,8 @@ class Settings : public QObject
 
 		int GetDisplayTargetPeak() const;
 		void SetDisplayTargetPeak(int peak);
+		bool GetDisplayTargetAutoInverseTonemap() const;
+		void SetDisplayTargetAutoInverseTonemap(bool enabled);
 
 		int GetDisplayTargetTrc() const;
 		void SetDisplayTargetTrc(int trc);

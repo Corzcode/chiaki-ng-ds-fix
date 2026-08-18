@@ -1209,6 +1209,16 @@ void Settings::SetDisplayTargetPeak(int peak)
 	settings.setValue("settings/display_target_peak", peak);
 }
 
+bool Settings::GetDisplayTargetAutoInverseTonemap() const
+{
+	return settings.value("settings/display_target_auto_inverse_tonemap", false).toBool();
+}
+
+void Settings::SetDisplayTargetAutoInverseTonemap(bool enabled)
+{
+	settings.setValue("settings/display_target_auto_inverse_tonemap", enabled);
+}
+
 int Settings::GetDisplayTargetTrc() const
 {
 	return settings.value("settings/display_target_trc", 0).toInt();

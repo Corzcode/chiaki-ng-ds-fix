@@ -38,6 +38,7 @@ class QmlSettings : public QObject
     Q_PROPERTY(int hapticsAntiLatencyMs READ hapticsAntiLatencyMs WRITE setHapticsAntiLatencyMs NOTIFY hapticsAntiLatencyMsChanged)
     Q_PROPERTY(int displayTargetContrast READ displayTargetContrast WRITE setDisplayTargetContrast NOTIFY displayTargetContrastChanged)
     Q_PROPERTY(int displayTargetPeak READ displayTargetPeak WRITE setDisplayTargetPeak NOTIFY displayTargetPeakChanged)
+    Q_PROPERTY(bool displayTargetAutoInverseTonemap READ displayTargetAutoInverseTonemap WRITE setDisplayTargetAutoInverseTonemap NOTIFY displayTargetAutoInverseTonemapChanged)
     Q_PROPERTY(int displayTargetPrim READ displayTargetPrim WRITE setDisplayTargetPrim NOTIFY displayTargetPrimChanged)
     Q_PROPERTY(int displayTargetTrc READ displayTargetTrc WRITE setDisplayTargetTrc NOTIFY displayTargetTrcChanged)
     Q_PROPERTY(bool fullscreenDoubleClick READ fullscreenDoubleClick WRITE setFullscreenDoubleClick NOTIFY fullscreenDoubleClickChanged)
@@ -191,6 +192,9 @@ public:
 
     int displayTargetPeak() const;
     void setDisplayTargetPeak(int peak);
+
+    bool displayTargetAutoInverseTonemap() const;
+    void setDisplayTargetAutoInverseTonemap(bool enabled);
 
     int displayTargetPrim() const;
     void setDisplayTargetPrim(int prim);
@@ -669,6 +673,7 @@ signals:
     void codecRemotePS5Changed();
     void vulkanDeferredSwapChanged();
     void displayTargetPeakChanged();
+    void displayTargetAutoInverseTonemapChanged();
     void displayTargetContrastChanged();
     void displayTargetPrimChanged();
     void displayTargetTrcChanged();

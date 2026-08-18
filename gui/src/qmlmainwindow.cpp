@@ -6571,6 +6571,15 @@ void QmlMainWindow::render()
     const int target_peak = apply_display_target ? settings->GetDisplayTargetPeak() : 0;
     const int target_contrast = apply_display_target ? settings->GetDisplayTargetContrast() : 0;
 
+    struct pl_color_map_params auto_inverse_tonemap_params;
+    const bool auto_inverse_tonemap = apply_display_target && settings->GetDisplayTargetAutoInverseTonemap();
+    if (auto_inverse_tonemap && target_peak > 0)
+    {
+        auto_inverse_tonemap_params = params.color_map_params ? *params.color_map_params : pl_color_map_default_params;
+        auto_inverse_tonemap_params.inverse_tone_mapping = true;
+        params.color_map_params = &auto_inverse_tonemap_params;
+    }
+
     uint64_t ts_pre_update = chiaki_time_now_monotonic_us();
     double refresh_rate = screen() ? screen()->refreshRate() : 60.0;
     if (refresh_rate <= 1.0)
@@ -7139,7 +7148,7 @@ void QmlMainWindow::render()
     if(target_trc)
         target_frame.color.transfer = static_cast<pl_color_transfer>(target_trc);
 
-    if(target_peak && !target_frame.color.hdr.max_luma)
+    if(target_peak)
     {
         target_frame.color.hdr.max_luma = target_peak;
     }
