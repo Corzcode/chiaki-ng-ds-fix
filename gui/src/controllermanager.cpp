@@ -813,7 +813,12 @@ void Controller::SetDualSenseRumble(uint8_t left, uint8_t right)
 		return;
 	DS5EffectsState_t state;
 	SDL_zero(state);
-	if(firmware_version < 0x0224)
+	// SDL_GameControllerGetFirmwareVersion() can return 0 on hotplug or with
+	// some USB/BT driver combinations. 0 is not a valid firmware version, so
+	// treat it as "new firmware" (>= 2.24). Otherwise we would send the legacy
+	// 0x01 enable bit, which current DualSense firmware ignores, causing rumble
+	// to silently disappear (e.g. when switching from Bluetooth to USB).
+	if(firmware_version != 0 && firmware_version < 0x0224)
 	{
 		state.ucEnableBits1 |= 0x01;
 		state.ucRumbleLeft = left >> 1;
