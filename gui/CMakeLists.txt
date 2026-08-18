@@ -7,7 +7,7 @@ if(APPLE)
 	enable_language(OBJCXX)
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Concurrent Svg Qml Quick Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Concurrent Svg Qml Quick Widgets LinguistTools)
 if(Qt6_VERSION VERSION_GREATER_EQUAL "6.10.0")
 	find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
 endif()
@@ -152,6 +152,16 @@ set_target_properties(chiaki PROPERTIES
 		MACOSX_BUNDLE_GUI_IDENTIFIER "org.streetpea.chiaking"
 		MACOSX_BUNDLE_ICON_FILE chiaking.icns
 		RESOURCE "${RESOURCE_FILES}")
+
+qt_add_translations(chiaki
+	TS_FILES
+		${CMAKE_CURRENT_SOURCE_DIR}/translations/chiaki_en.ts
+		${CMAKE_CURRENT_SOURCE_DIR}/translations/chiaki_zh_CN.ts
+	QM_FILES_OUTPUT_VARIABLE QM_FILES
+	RESOURCE_PREFIX "/i18n"
+	LUPDATE_OPTIONS --locations relative -no-obsolete
+)
+target_sources(chiaki PRIVATE ${QM_FILES})
 
 install(TARGETS chiaki
 		RUNTIME DESTINATION bin
