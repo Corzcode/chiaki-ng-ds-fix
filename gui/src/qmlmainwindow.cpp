@@ -7052,7 +7052,7 @@ void QmlMainWindow::render()
     // SDR frames fall back to automatic (the swapchain's native color space) so
     // the numeric value never clamps/tones SDR content.
     const bool source_is_hdr = hint_frame
-        && (hint.transfer == PL_TRANSFER_PQ || hint.transfer == PL_TRANSFER_HLG);
+        && (hint.transfer == PL_COLOR_TRC_PQ || hint.transfer == PL_COLOR_TRC_HLG);
     const int effective_target_peak = (target_peak_hdr_only && !source_is_hdr) ? 0 : target_peak;
     if (auto_inverse_tonemap && effective_target_peak > 0)
     {
