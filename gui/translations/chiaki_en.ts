@@ -251,6 +251,10 @@
 			<translation>Target Peak:</translation>
 		</message>
 		<message>
+			<source>Target Peak HDR Only:</source>
+			<translation>Target Peak HDR Only:</translation>
+		</message>
+		<message>
 			<source>Target Primaries:</source>
 			<translation>Target Primaries:</translation>
 		</message>

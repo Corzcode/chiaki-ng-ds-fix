@@ -38,6 +38,7 @@ class QmlSettings : public QObject
     Q_PROPERTY(int hapticsAntiLatencyMs READ hapticsAntiLatencyMs WRITE setHapticsAntiLatencyMs NOTIFY hapticsAntiLatencyMsChanged)
     Q_PROPERTY(int displayTargetContrast READ displayTargetContrast WRITE setDisplayTargetContrast NOTIFY displayTargetContrastChanged)
     Q_PROPERTY(int displayTargetPeak READ displayTargetPeak WRITE setDisplayTargetPeak NOTIFY displayTargetPeakChanged)
+    Q_PROPERTY(bool displayTargetPeakHdrOnly READ displayTargetPeakHdrOnly WRITE setDisplayTargetPeakHdrOnly NOTIFY displayTargetPeakHdrOnlyChanged)
     Q_PROPERTY(bool displayTargetAutoInverseTonemap READ displayTargetAutoInverseTonemap WRITE setDisplayTargetAutoInverseTonemap NOTIFY displayTargetAutoInverseTonemapChanged)
     Q_PROPERTY(int displayTargetPrim READ displayTargetPrim WRITE setDisplayTargetPrim NOTIFY displayTargetPrimChanged)
     Q_PROPERTY(int displayTargetTrc READ displayTargetTrc WRITE setDisplayTargetTrc NOTIFY displayTargetTrcChanged)
@@ -188,6 +189,8 @@ public:
 
     int displayTargetPeak() const;
     void setDisplayTargetPeak(int peak);
+    bool displayTargetPeakHdrOnly() const;
+    void setDisplayTargetPeakHdrOnly(bool enabled);
 
     bool displayTargetAutoInverseTonemap() const;
     void setDisplayTargetAutoInverseTonemap(bool enabled);
@@ -656,6 +659,7 @@ signals:
     void codecLocalPS5Changed();
     void codecRemotePS5Changed();
     void displayTargetPeakChanged();
+    void displayTargetPeakHdrOnlyChanged();
     void displayTargetAutoInverseTonemapChanged();
     void displayTargetContrastChanged();
     void displayTargetPrimChanged();
