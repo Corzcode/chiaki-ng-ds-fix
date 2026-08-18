@@ -67,6 +67,7 @@ class QmlSettings : public QObject
     Q_PROPERTY(int queueDepthLimit READ queueDepthLimit WRITE setQueueDepthLimit NOTIFY queueDepthLimitChanged)
     Q_PROPERTY(QString autoConnectMac READ autoConnectMac WRITE setAutoConnectMac NOTIFY autoConnectMacChanged)
     Q_PROPERTY(bool allowJoystickBackgroundEvents READ allowJoystickBackgroundEvents WRITE setAllowJoystickBackgroundEvents NOTIFY allowJoystickBackgroundEventsChanged)
+	Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
     Q_PROPERTY(QString logDirectory READ logDirectory CONSTANT)
     Q_PROPERTY(QStringList availableDecoders READ availableDecoders CONSTANT)
     Q_PROPERTY(QStringList availableAudioInDevices READ availableAudioInDevices NOTIFY audioDevicesChanged)
@@ -203,6 +204,8 @@ public:
     void setLogVerbose(bool verbose);
     bool logSanitize() const;
     void setLogSanitize(bool enabled);
+    QString language() const;
+    void setLanguage(const QString &language);
     bool vSyncEnabled() const;
     void setVSyncEnabled(bool enabled);
 
@@ -670,6 +673,7 @@ signals:
     void rendererBackendChanged();
     void autoConnectMacChanged();
     void audioDevicesChanged();
+    void languageChanged();
     void registeredHostsChanged();
     void psnAuthTokenChanged();
     void psnRefreshTokenChanged();

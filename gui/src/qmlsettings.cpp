@@ -255,6 +255,17 @@ void QmlSettings::setLogVerbose(bool verbose)
     emit logVerboseChanged();
 }
 
+QString QmlSettings::language() const
+{
+	return settings->GetLanguage();
+}
+
+void QmlSettings::setLanguage(const QString &language)
+{
+	settings->SetLanguage(language);
+	emit languageChanged();
+}
+
 bool QmlSettings::logSanitize() const
 {
     return settings->GetLogSanitize();
