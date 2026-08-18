@@ -594,6 +594,7 @@ StreamSession::StreamSession(const StreamSessionConnectInfo &connect_info, QObje
 	connect(this, &StreamSession::DualSenseIntensityChanged, ControllerManager::GetInstance(), &ControllerManager::SetDualSenseIntensity);
 	if(connect_info.buttons_by_pos)
 		ControllerManager::GetInstance()->SetButtonsByPos();
+	ControllerManager::GetInstance()->SetDS5GyroFixEnabled(settings->GetDS5GyroFixEnabled());
 #endif
 #if CHIAKI_GUI_ENABLE_SETSU
 	setsu_motion_device = nullptr;
