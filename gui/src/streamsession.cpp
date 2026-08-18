@@ -2204,6 +2204,22 @@ void StreamSession::PushHapticsFrame(uint8_t *buf, size_t buf_size)
 #endif
 	if((rumble_haptics_intensity != RumbleHapticsIntensity::Off) && haptics_output == 0)
 	{
+		// When the DualSense haptic audio device is unavailable (typical over
+		// Bluetooth on Windows, see "could not find the DualSense audio device"),
+		// the streaming haptic audio cannot be played via the dedicated HD
+		// haptics and is instead routed here and converted into rumble-motor
+		// strength. The raw engine/road low-frequency content then feels like
+		// excessive, continuous rumble (e.g. GT7 vibrating on a flat road).
+		// Detect this case and attenuate so it doesn't feel overwhelming.
+		bool dualsense_haptic_fallback = false;
+		for(auto controller : controllers)
+		{
+			if(controller->IsDualSense() || controller->IsDualSenseEdge())
+			{
+				dualsense_haptic_fallback = true;
+				break;
+			}
+		}
 		int16_t amplitudel = 0, amplituder = 0;
 		uint32_t suml = 0, sumr = 0;
 		const size_t sample_size = 2 * sizeof(int16_t); // stereo samples
@@ -2256,6 +2272,14 @@ void StreamSession::PushHapticsFrame(uint8_t *buf, size_t buf_size)
 				left = temp_left;
 				right = temp_right;
 				break;
+		}
+		// DualSense haptic audio fallback: the streaming audio is being dumped
+		// into the rumble motors, so apply an extra attenuation to keep engine/
+		// road low-frequency feedback from feeling like full-strength rumble.
+		if(dualsense_haptic_fallback)
+		{
+			left = static_cast<uint16_t>(left * 0.4f);
+			right = static_cast<uint16_t>(right * 0.4f);
 		}
 		// Set minimum rumble value if above rumble min for controllers that shift up to 9 bits when rumbling
 		left = ((left > 0 && left < (1 << 9)) ? (1 << 9) : left);
