@@ -7,11 +7,22 @@ on:
         description: "libplacebo git tag to build"
         required: false
         default: "v7.360.1"
+      create_release:
+        description: "Check to create a GitHub Release with the built artifacts"
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: "Release tag (e.g. v1.10.0). Leave empty to auto-detect from CMakeLists"
+        required: false
+        type: string
 
 jobs:
   build-windows_x64-msys2:
     name: Build windows msys2 version
     runs-on: windows-latest
+    permissions:
+      contents: write
     defaults:
       run:
         shell: msys2 {0}
@@ -124,4 +135,29 @@ jobs:
           path: chiaki-ng-windows-installer.exe
           if-no-files-found: error
           retention-days: 7
+
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.create_release == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            RELEASE_TAG="${{ github.event.inputs.release_tag }}"
+          else
+            CHIAKI_VERSION_MAJOR="$(grep 'CHIAKI_VERSION_MAJOR' CMakeLists.txt | grep -Eo '[0-9]+')"
+            CHIAKI_VERSION_MINOR="$(grep 'CHIAKI_VERSION_MINOR' CMakeLists.txt | grep -Eo '[0-9]+')"
+            CHIAKI_VERSION_PATCH="$(grep 'CHIAKI_VERSION_PATCH' CMakeLists.txt | grep -Eo '[0-9]+')"
+            RELEASE_TAG="v$CHIAKI_VERSION_MAJOR.$CHIAKI_VERSION_MINOR.$CHIAKI_VERSION_PATCH"
+          fi
+          echo "Releasing tag $RELEASE_TAG"
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists, uploading files"
+            gh release upload "$RELEASE_TAG" "$RELEASE_PACKAGE_PATH" chiaki-ng-windows-installer.exe \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$RELEASE_PACKAGE_PATH" chiaki-ng-windows-installer.exe \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --notes "Automated release from workflow run $GITHUB_RUN_NUMBER (commit $GITHUB_SHA)"
+          fi
           
