@@ -311,6 +311,9 @@ class Settings : public QObject
 		bool GetHapticsAntiLatencyEnabled() const       { return settings.value("settings/haptics_anti_latency", true).toBool(); }
 		void SetHapticsAntiLatencyEnabled(bool enabled) { settings.setValue("settings/haptics_anti_latency", enabled); }
 
+		int GetHapticsAntiLatencyMs() const       { return settings.value("settings/haptics_anti_latency_ms", 50).toInt(); }
+		void SetHapticsAntiLatencyMs(int ms) { settings.setValue("settings/haptics_anti_latency_ms", ms); }
+
 		ChiakiVideoResolutionPreset GetResolutionLocalPS4() const;
 		ChiakiVideoResolutionPreset GetResolutionRemotePS4() const;
 		ChiakiVideoResolutionPreset GetResolutionLocalPS5() const;

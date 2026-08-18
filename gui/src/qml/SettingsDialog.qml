@@ -2843,7 +2843,7 @@ DialogView {
 
                             C.CheckBox {
                                 id: hapticsAntiLatency
-                                text: qsTr("Clear stale haptics queue when latency exceeds 50ms (prevents delayed/missing vibrations)")
+                                text: qsTr("Clear stale haptics queue when latency exceeds the configured threshold (prevents delayed/missing vibrations)")
                                 checked: Chiaki.settings.hapticsAntiLatency
                                 onToggled: Chiaki.settings.hapticsAntiLatency = checked
                                 KeyNavigation.priority: KeyNavigation.BeforeItem
@@ -2853,6 +2853,39 @@ DialogView {
                             Label {
                                 Layout.alignment: Qt.AlignRight
                                 text: qsTr("(Checked)")
+                            }
+                        }
+                        RowLayout {
+                            spacing: 10
+                            Layout.alignment: Qt.AlignHCenter
+                            Label {
+                                Layout.alignment: Qt.AlignRight
+                                text: qsTr("Queue Threshold:")
+                            }
+
+                            C.Slider {
+                                id: hapticsAntiLatencyMs
+                                Layout.preferredWidth: 250
+                                from: 20
+                                to: 100
+                                stepSize: 5
+                                value: Chiaki.settings.hapticsAntiLatencyMs
+                                onMoved: Chiaki.settings.hapticsAntiLatencyMs = value
+                                lastInFocusChain: true
+                                Label {
+                                    anchors {
+                                        left: parent.right
+                                        verticalCenter: parent.verticalCenter
+                                        leftMargin: 10
+                                    }
+                                    text: Math.round(parent.value) + qsTr(" ms")
+                                }
+                            }
+
+                            Label {
+                                Layout.alignment: Qt.AlignRight
+                                Layout.leftMargin: 250
+                                text: qsTr("(50 ms)")
                             }
                         }
                     }

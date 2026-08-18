@@ -308,6 +308,7 @@ StreamSessionConnectInfo::StreamSessionConnectInfo(
 	this->enable_idr_on_fec_failure = settings->GetIDROnFECFailureEnabled();
 	this->rumble_haptics_intensity = settings->GetRumbleHapticsIntensity();
 	this->haptics_anti_latency = settings->GetHapticsAntiLatencyEnabled();
+	this->haptics_anti_latency_ms = settings->GetHapticsAntiLatencyMs();
 	this->buttons_by_pos = settings->GetButtonsByPosition();
 	this->start_mic_unmuted = settings->GetStartMicUnmuted();
 	this->port_guessing_enabled = settings->GetPortGuessingEnabled();
@@ -484,6 +485,8 @@ StreamSession::StreamSession(const StreamSessionConnectInfo &connect_info, QObje
 	dpad_touch_shortcut3 = connect_info.dpad_touch_shortcut3;
 	dpad_touch_shortcut4 = connect_info.dpad_touch_shortcut4;
 	haptic_override = connect_info.haptic_override;
+	haptics_anti_latency = connect_info.haptics_anti_latency;
+	haptics_anti_latency_ms = connect_info.haptics_anti_latency_ms;
 #if CHIAKI_LIB_ENABLE_PI_DECODER
 	if(connect_info.decoder == Decoder::Pi && chiaki_connect_info.video_profile.codec != CHIAKI_CODEC_H264)
 	{
@@ -1723,7 +1726,6 @@ void StreamSession::InitHaptics()
 {
 	haptics_output = 0;
 	haptics_buffer_size = 480; //10ms * number of ms delay configured
-	haptics_anti_latency = true;
 	haptics_resampler_buf = nullptr;
 #ifdef Q_OS_LINUX
 	// Haptics work most reliably with Pipewire, so try to use that if available
@@ -2327,7 +2329,7 @@ void StreamSession::PushHapticsFrame(uint8_t *buf, size_t buf_size)
 	{
 		// 4 channels * 2 bytes (S16) per sample; haptics_buffer_size is samples (10ms)
 		const size_t bytes_per_buffer = haptics_buffer_size * 4 * 2;
-		const size_t threshold = bytes_per_buffer * 5; // 50ms of queued audio
+		const size_t threshold = bytes_per_buffer * haptics_anti_latency_ms / 10;
 		if(SDL_GetQueuedAudioSize(haptics_output) > threshold)
 		{
 			CHIAKI_LOGV(log.GetChiakiLog(), "Haptics queue exceeded %zu bytes (%zu ms), clearing stale frames",
