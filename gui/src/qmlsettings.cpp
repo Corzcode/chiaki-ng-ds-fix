@@ -544,6 +544,17 @@ void QmlSettings::setDisplayTargetPeak(int peak)
     emit displayTargetPeakChanged();
 }
 
+bool QmlSettings::displayTargetAutoInverseTonemap() const
+{
+    return settings->GetDisplayTargetAutoInverseTonemap();
+}
+
+void QmlSettings::setDisplayTargetAutoInverseTonemap(bool enabled)
+{
+    settings->SetDisplayTargetAutoInverseTonemap(enabled);
+    emit displayTargetAutoInverseTonemapChanged();
+}
+
 int QmlSettings::displayTargetPrim() const
 {
     return settings->GetDisplayTargetPrim();
@@ -1895,6 +1906,7 @@ void QmlSettings::refreshAllKeys()
 #endif
     emit displayTargetContrastChanged();
     emit displayTargetPeakChanged();
+    emit displayTargetAutoInverseTonemapChanged();
     emit displayTargetPrimChanged();
     emit displayTargetTrcChanged();
     emit fullscreenDoubleClickChanged();
