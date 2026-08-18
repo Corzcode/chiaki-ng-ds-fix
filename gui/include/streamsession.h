@@ -268,6 +268,7 @@ class StreamSession : public QObject
 		bool audio_out_drain_thread_running = false;
 		bool audio_out_drain_requested = false;
 		size_t haptics_buffer_size;
+		bool haptics_anti_latency;
 		unsigned int audio_buffer_size;
 		ChiakiHolepunchSession holepunch_session;
 #if CHIAKI_GUI_ENABLE_SPEEX

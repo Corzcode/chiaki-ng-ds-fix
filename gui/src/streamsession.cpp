@@ -119,6 +119,7 @@ StreamSessionConnectInfo::StreamSessionConnectInfo(
 	this->enable_dualsense = true;
 	this->enable_idr_on_fec_failure = settings->GetIDROnFECFailureEnabled();
 	this->rumble_haptics_intensity = settings->GetRumbleHapticsIntensity();
+	this->haptics_anti_latency = settings->GetHapticsAntiLatencyEnabled();
 	this->buttons_by_pos = settings->GetButtonsByPosition();
 	this->start_mic_unmuted = settings->GetStartMicUnmuted();
 	this->port_guessing_enabled = settings->GetPortGuessingEnabled();
@@ -1543,6 +1544,7 @@ void StreamSession::InitHaptics()
 	sdeck_haptics_senderr = nullptr;
 	sdeck_haptics_senderl = nullptr;
 #endif
+	haptics_anti_latency = true;
 	haptics_resampler_buf = nullptr;
 #ifdef Q_OS_LINUX
 	// Haptics work most reliably with Pipewire, so try to use that if available
@@ -2186,6 +2188,22 @@ void StreamSession::PushHapticsFrame(uint8_t *buf, size_t buf_size)
 	{
 		CHIAKI_LOGE(log.GetChiakiLog(), "Failed to resample haptics audio: %s", SDL_GetError());
 		return;
+	}
+
+	// Prevent haptics latency buildup: if queued audio exceeds threshold,
+	// drain stale frames so current vibration plays immediately instead of
+	// waiting behind a backlog caused by network jitter.
+	if(haptics_anti_latency)
+	{
+		// 4 channels * 2 bytes (S16) per sample; haptics_buffer_size is samples (10ms)
+		const size_t bytes_per_buffer = haptics_buffer_size * 4 * 2;
+		const size_t threshold = bytes_per_buffer * 5; // 50ms of queued audio
+		if(SDL_GetQueuedAudioSize(haptics_output) > threshold)
+		{
+			CHIAKI_LOGV(log.GetChiakiLog(), "Haptics queue exceeded %zu bytes (%zu ms), clearing stale frames",
+					threshold, threshold / bytes_per_buffer * 10);
+			SDL_ClearQueuedAudio(haptics_output);
+		}
 	}
 
 	if (SDL_QueueAudio(haptics_output, cvt.buf, cvt.len_cvt) < 0)

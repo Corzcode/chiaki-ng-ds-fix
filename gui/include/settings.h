@@ -297,6 +297,9 @@ class Settings : public QObject
 		bool GetDS5GyroFixEnabled() const       { return settings.value("settings/ds5_gyro_fix", false).toBool(); }
 		void SetDS5GyroFixEnabled(bool enabled) { settings.setValue("settings/ds5_gyro_fix", enabled); }
 
+		bool GetHapticsAntiLatencyEnabled() const       { return settings.value("settings/haptics_anti_latency", true).toBool(); }
+		void SetHapticsAntiLatencyEnabled(bool enabled) { settings.setValue("settings/haptics_anti_latency", enabled); }
+
 		ChiakiVideoResolutionPreset GetResolutionLocalPS4() const;
 		ChiakiVideoResolutionPreset GetResolutionRemotePS4() const;
 		ChiakiVideoResolutionPreset GetResolutionLocalPS5() const;

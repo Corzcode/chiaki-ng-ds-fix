@@ -2802,6 +2802,50 @@ DialogView {
                                 text: qsTr("(console setting)")
                             }
                         }
+                        RowLayout {
+                            spacing: 10
+                            Layout.alignment: Qt.AlignHCenter
+                            Label {
+                                Layout.alignment: Qt.AlignRight
+                                text: qsTr("DS5 Gyro Fix:")
+                            }
+
+                            C.CheckBox {
+                                id: ds5GyroFix
+                                text: qsTr("Write gyro/accel to controller state for native DualSense (restores v1.8.0 accuracy)")
+                                checked: Chiaki.settings.ds5GyroFix
+                                onToggled: Chiaki.settings.ds5GyroFix = checked
+                                KeyNavigation.priority: KeyNavigation.BeforeItem
+                                KeyNavigation.up: hapticOverride
+                            }
+
+                            Label {
+                                Layout.alignment: Qt.AlignRight
+                                text: qsTr("(Unchecked)")
+                            }
+                        }
+                        RowLayout {
+                            spacing: 10
+                            Layout.alignment: Qt.AlignHCenter
+                            Label {
+                                Layout.alignment: Qt.AlignRight
+                                text: qsTr("Haptics Anti-Latency:")
+                            }
+
+                            C.CheckBox {
+                                id: hapticsAntiLatency
+                                text: qsTr("Clear stale haptics queue when latency exceeds 50ms (prevents delayed/missing vibrations)")
+                                checked: Chiaki.settings.hapticsAntiLatency
+                                onToggled: Chiaki.settings.hapticsAntiLatency = checked
+                                KeyNavigation.priority: KeyNavigation.BeforeItem
+                                KeyNavigation.up: ds5GyroFix
+                            }
+
+                            Label {
+                                Layout.alignment: Qt.AlignRight
+                                text: qsTr("(Checked)")
+                            }
+                        }
                     }
                 }
             }
