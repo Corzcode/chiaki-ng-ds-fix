@@ -20,6 +20,8 @@ int main(int argc, char *argv[]) { return real_main(argc, argv); }
 #include <discoverymanager.h>
 #include <qmlmainwindow.h>
 #include <QApplication>
+#include <QTranslator>
+#include <QLocale>
 #include <QtTypes>
 
 #ifdef CHIAKI_ENABLE_CLI
@@ -63,6 +65,16 @@ static const QMap<QString, CLICommand> cli_commands = {
 
 int RunStream(QGuiApplication &app, const StreamSessionConnectInfo &connect_info);
 int RunMain(QGuiApplication &app, Settings *settings, bool exit_app_on_stream_exit);
+
+static void InstallTranslator(QApplication &app, const QString &language)
+{
+	static QTranslator translator;
+	QString lang = language;
+	if(lang == "system")
+		lang = QLocale::system().language() == QLocale::Chinese ? "zh_CN" : "en";
+	if(lang == "zh_CN" && translator.load(":/i18n/chiaki_zh_CN.qm"))
+		app.installTranslator(&translator);
+}
 
 int real_main(int argc, char *argv[])
 {
@@ -187,6 +199,8 @@ int real_main(int argc, char *argv[])
 	bool use_alt_settings = false;
 	if(!parser.isSet(profile_option))
 		use_alt_settings = true;
+
+	InstallTranslator(app, use_alt_settings ? alt_settings.GetLanguage() : settings.GetLanguage());
 
 	if(args.length() == 0)
 		return RunMain(app, use_alt_settings ? &alt_settings : &settings, exit_app_on_stream_exit);
