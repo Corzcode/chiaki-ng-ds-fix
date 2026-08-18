@@ -16,6 +16,7 @@ extern "C" {
 #include <libavutil/hwcontext.h>
 #include <libavutil/pixdesc.h>
 #include <libavutil/pixfmt.h>
+#include <libavutil/version.h>
 }
 
 #include <QDebug>
@@ -1375,6 +1376,25 @@ AVBufferRef *QmlMainWindow::vulkanHwDeviceCtx()
     vkctx->nb_enabled_inst_extensions = placebo_vk_inst->num_extensions;
     vkctx->enabled_dev_extensions = placebo_vulkan->extensions;
     vkctx->nb_enabled_dev_extensions = placebo_vulkan->num_extensions;
+#if LIBAVUTIL_VERSION_MAJOR >= 60
+    vkctx->queue_flags = 0;
+    vkctx->nb_qf = 0;
+    vkctx->qf[vkctx->nb_qf++] = { placebo_vulkan->queue_graphics.index,
+                                  placebo_vulkan->queue_graphics.count,
+                                  VK_QUEUE_GRAPHICS_BIT,
+                                  VK_VIDEO_CODEC_OPERATION_NONE_KHR };
+    vkctx->qf[vkctx->nb_qf++] = { placebo_vulkan->queue_transfer.index,
+                                  placebo_vulkan->queue_transfer.count,
+                                  VK_QUEUE_TRANSFER_BIT,
+                                  VK_VIDEO_CODEC_OPERATION_NONE_KHR };
+    vkctx->qf[vkctx->nb_qf++] = { placebo_vulkan->queue_compute.index,
+                                  placebo_vulkan->queue_compute.count,
+                                  VK_QUEUE_COMPUTE_BIT,
+                                  VK_VIDEO_CODEC_OPERATION_NONE_KHR };
+    if (vk_decode_queue_index >= 0)
+        vkctx->qf[vkctx->nb_qf++] = { vk_decode_queue_index, 1, VK_QUEUE_VIDEO_DECODE_BIT_KHR,
+                                      VK_VIDEO_CODEC_OPERATION_NONE_KHR };
+#else
     vkctx->queue_family_index = placebo_vulkan->queue_graphics.index;
     vkctx->nb_graphics_queues = placebo_vulkan->queue_graphics.count;
     vkctx->queue_family_tx_index = placebo_vulkan->queue_transfer.index;
@@ -1383,6 +1403,7 @@ AVBufferRef *QmlMainWindow::vulkanHwDeviceCtx()
     vkctx->nb_comp_queues = placebo_vulkan->queue_compute.count;
     vkctx->queue_family_decode_index = vk_decode_queue_index;
     vkctx->nb_decode_queues = 1;
+#endif
     vkctx->lock_queue = [](struct AVHWDeviceContext *dev_ctx, uint32_t queue_family, uint32_t index) {
         auto vk = reinterpret_cast<pl_vulkan>(dev_ctx->user_opaque);
         vk->lock_queue(vk, queue_family, index);
