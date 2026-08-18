@@ -251,6 +251,8 @@ class Settings : public QObject
 		void SetLogSanitize(bool enabled)      { settings.setValue("settings/log_sanitize", enabled); }
 		bool GetVSyncEnabled() const           { return settings.value("settings/vsync", true).toBool(); }
 		void SetVSyncEnabled(bool enabled)     { settings.setValue("settings/vsync", enabled); }
+		QString GetLanguage() const					{ return settings.value("settings/language", "system").toString(); }
+		void SetLanguage(const QString &language)	{ settings.setValue("settings/language", language); }
 		uint32_t GetLogLevelMask();
 
 		bool GetHideCursor() const				{ return settings.value("settings/hide_cursor", true).toBool(); }
