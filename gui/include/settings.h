@@ -294,6 +294,9 @@ class Settings : public QObject
 		float GetHapticOverride() const 			{ return settings.value("settings/haptic_override", 1.0).toFloat(); }
 		void SetHapticOverride(float override)	{ settings.setValue("settings/haptic_override", override); }
 
+		bool GetDS5GyroFixEnabled() const       { return settings.value("settings/ds5_gyro_fix", false).toBool(); }
+		void SetDS5GyroFixEnabled(bool enabled) { settings.setValue("settings/ds5_gyro_fix", enabled); }
+
 		ChiakiVideoResolutionPreset GetResolutionLocalPS4() const;
 		ChiakiVideoResolutionPreset GetResolutionRemotePS4() const;
 		ChiakiVideoResolutionPreset GetResolutionLocalPS5() const;

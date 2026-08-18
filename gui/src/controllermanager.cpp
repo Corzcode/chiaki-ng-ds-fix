@@ -140,7 +140,7 @@ ControllerManager *ControllerManager::GetInstance()
 
 ControllerManager::ControllerManager(QObject *parent)
 	: QObject(parent), creating_controller_mapping(false),
-	joystick_allow_background_events(true), dualsense_intensity(0x00), is_app_active(true)
+	joystick_allow_background_events(true), dualsense_intensity(0x00), ds5_gyro_fix_enabled(false), is_app_active(true)
 {
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 	SDL_SetMainReady();
@@ -615,6 +615,12 @@ inline bool Controller::HandleSensorEvent(SDL_ControllerSensorEvent event)
 			accel_x = event.data[0] / SDL_STANDARD_GRAVITY;
 			accel_y = event.data[1] / SDL_STANDARD_GRAVITY;
 			accel_z = event.data[2] / SDL_STANDARD_GRAVITY;
+			if(manager->GetDS5GyroFixEnabled() && IsDualSense())
+			{
+				state.accel_x = accel_x;
+				state.accel_y = accel_y;
+				state.accel_z = accel_z;
+			}
 			chiaki_accel_new_zero_set_active(&this->real_accel,
 			accel_x, accel_y, accel_z, true);
 			chiaki_orientation_tracker_update(
@@ -625,6 +631,12 @@ inline bool Controller::HandleSensorEvent(SDL_ControllerSensorEvent event)
 			gyro_x = event.data[0];
 			gyro_y = event.data[1];
 			gyro_z = event.data[2];
+			if(manager->GetDS5GyroFixEnabled() && IsDualSense())
+			{
+				state.gyro_x = gyro_x;
+				state.gyro_y = gyro_y;
+				state.gyro_z = gyro_z;
+			}
 			chiaki_orientation_tracker_update(
 				&orientation_tracker, gyro_x, gyro_y, gyro_z,
 				state.accel_x, state.accel_y, state.accel_z, &accel_zero, true, event.timestamp * 1000);
