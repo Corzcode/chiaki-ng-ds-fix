@@ -251,6 +251,10 @@
 			<translation>目标峰值：</translation>
 		</message>
 		<message>
+			<source>Target Peak HDR Only:</source>
+			<translation>目标峰值仅用于 HDR：</translation>
+		</message>
+		<message>
 			<source>Target Primaries:</source>
 			<translation>目标原色：</translation>
 		</message>

@@ -544,6 +544,17 @@ void QmlSettings::setDisplayTargetPeak(int peak)
     emit displayTargetPeakChanged();
 }
 
+bool QmlSettings::displayTargetPeakHdrOnly() const
+{
+    return settings->GetDisplayTargetPeakHdrOnly();
+}
+
+void QmlSettings::setDisplayTargetPeakHdrOnly(bool enabled)
+{
+    settings->SetDisplayTargetPeakHdrOnly(enabled);
+    emit displayTargetPeakHdrOnlyChanged();
+}
+
 bool QmlSettings::displayTargetAutoInverseTonemap() const
 {
     return settings->GetDisplayTargetAutoInverseTonemap();

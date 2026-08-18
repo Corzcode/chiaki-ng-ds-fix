@@ -126,6 +126,24 @@ DialogView {
 
             Label {
                 Layout.alignment: Qt.AlignRight
+                text: qsTr("Target Peak HDR Only:")
+                visible: targetPeakChoice.currentIndex == 1
+            }
+
+            C.CheckBox {
+                checked: Chiaki.settings.displayTargetPeakHdrOnly
+                onToggled: Chiaki.settings.displayTargetPeakHdrOnly = checked
+                visible: targetPeakChoice.currentIndex == 1
+            }
+
+            Label {
+                Layout.alignment: Qt.AlignRight
+                text: qsTr("(On)")
+                visible: targetPeakChoice.currentIndex == 1
+            }
+
+            Label {
+                Layout.alignment: Qt.AlignRight
                 text: qsTr("Auto Inverse Tone-mapping:")
             }
 
