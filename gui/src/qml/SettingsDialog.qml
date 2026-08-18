@@ -465,6 +465,30 @@ DialogView {
 
                             Label {
                                 Layout.alignment: Qt.AlignRight
+                                text: qsTr("Language:")
+                            }
+
+                            C.ComboBox {
+                                Layout.preferredWidth: 400
+                                model: [qsTr("System"), qsTr("Simplified Chinese"), qsTr("English")]
+                                currentIndex: {
+                                    const lang = Chiaki.settings.language;
+                                    if(lang === "zh_CN") return 1;
+                                    if(lang === "en") return 2;
+                                    return 0;
+                                }
+                                onActivated: index => {
+                                    Chiaki.settings.language = index === 0 ? "system" : (index === 1 ? "zh_CN" : "en");
+                                }
+                            }
+
+                            Label {
+                                Layout.alignment: Qt.AlignRight
+                                text: qsTr("(Restart required)")
+                            }
+
+                            Label {
+                                Layout.alignment: Qt.AlignRight
                                 text: qsTr("Action On Disconnect:")
                             }
 
