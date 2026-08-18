@@ -76,7 +76,7 @@ jobs:
 
       - name: Setup Qt
         run: |
-            python3 -m aqt install-qt windows desktop "${env:QT_VERSION}" win64_msvc2022_arm64_cross_compiled --autodesktop --outputdir "${{ github.workspace }}\..\Qt" -m qtpositioning qtwebchannel qtwebsockets qtserialport
+            python3 -m aqt install-qt windows desktop "${env:QT_VERSION}" win64_msvc2022_arm64_cross_compiled --autodesktop --outputdir "${{ github.workspace }}\..\Qt" -m qttools qtpositioning qtwebchannel qtwebsockets qtserialport
             echo "${{ github.workspace }}\..\Qt\${env:QT_VERSION}\win64_msvc2022_arm64_cross_compiled\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
             echo "QT_ROOT_DIR=${{ github.workspace }}\..\Qt\${env:QT_VERSION}\win64_msvc2022_arm64_cross_compiled\" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             echo "QT_PLUGIN_PATH=${{ github.workspace }}\..\Qt\${env:QT_VERSION}\win64_msvc2022_arm64_cross_compiled\plugins" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
