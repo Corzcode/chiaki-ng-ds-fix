@@ -141,6 +141,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            export PATH="$PATH:/c/Program Files/GitHub CLI"
+          fi
           if [ -n "${{ github.event.inputs.release_tag }}" ]; then
             RELEASE_TAG="${{ github.event.inputs.release_tag }}"
           else
