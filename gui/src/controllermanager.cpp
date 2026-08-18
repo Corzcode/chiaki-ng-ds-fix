@@ -608,6 +608,9 @@ inline bool Controller::HandleAxisEvent(SDL_ControllerAxisEvent event) {
 #if SDL_VERSION_ATLEAST(2, 0, 14)
 inline bool Controller::HandleSensorEvent(SDL_ControllerSensorEvent event)
 {
+	bool ds5_fix = manager->GetDS5GyroFixEnabled() && IsDualSense();
+	if(ds5_fix)
+		orientation_tracker.fuzz_enabled = false;
 	float accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z;
 	switch(event.sensor)
 	{
@@ -615,31 +618,45 @@ inline bool Controller::HandleSensorEvent(SDL_ControllerSensorEvent event)
 			accel_x = event.data[0] / SDL_STANDARD_GRAVITY;
 			accel_y = event.data[1] / SDL_STANDARD_GRAVITY;
 			accel_z = event.data[2] / SDL_STANDARD_GRAVITY;
-			if(manager->GetDS5GyroFixEnabled() && IsDualSense())
+			if(ds5_fix)
 			{
+				// v1.8.0: write raw accel to state, feed Madgwick with paired latest values, no accel_zero/fuzz
 				state.accel_x = accel_x;
 				state.accel_y = accel_y;
 				state.accel_z = accel_z;
+				chiaki_orientation_tracker_update(
+					&orientation_tracker, state.gyro_x, state.gyro_y, state.gyro_z,
+					state.accel_x, state.accel_y, state.accel_z, &accel_zero, true, event.timestamp * 1000);
 			}
-			chiaki_accel_new_zero_set_active(&this->real_accel,
-			accel_x, accel_y, accel_z, true);
-			chiaki_orientation_tracker_update(
-				&orientation_tracker, state.gyro_x, state.gyro_y, state.gyro_z,
-				accel_x, accel_y, accel_z, &accel_zero, false, event.timestamp * 1000);
+			else
+			{
+				chiaki_accel_new_zero_set_active(&this->real_accel,
+				accel_x, accel_y, accel_z, true);
+				chiaki_orientation_tracker_update(
+					&orientation_tracker, state.gyro_x, state.gyro_y, state.gyro_z,
+					accel_x, accel_y, accel_z, &accel_zero, false, event.timestamp * 1000);
+			}
 			break;
 		case SDL_SENSOR_GYRO:
 			gyro_x = event.data[0];
 			gyro_y = event.data[1];
 			gyro_z = event.data[2];
-			if(manager->GetDS5GyroFixEnabled() && IsDualSense())
+			if(ds5_fix)
 			{
+				// v1.8.0: write raw gyro to state, feed Madgwick with paired latest values, no accel_zero/fuzz
 				state.gyro_x = gyro_x;
 				state.gyro_y = gyro_y;
 				state.gyro_z = gyro_z;
+				chiaki_orientation_tracker_update(
+					&orientation_tracker, state.gyro_x, state.gyro_y, state.gyro_z,
+					state.accel_x, state.accel_y, state.accel_z, &accel_zero, true, event.timestamp * 1000);
 			}
-			chiaki_orientation_tracker_update(
-				&orientation_tracker, gyro_x, gyro_y, gyro_z,
-				state.accel_x, state.accel_y, state.accel_z, &accel_zero, true, event.timestamp * 1000);
+			else
+			{
+				chiaki_orientation_tracker_update(
+					&orientation_tracker, gyro_x, gyro_y, gyro_z,
+					state.accel_x, state.accel_y, state.accel_z, &accel_zero, true, event.timestamp * 1000);
+			}
 			break;
 		default:
 			return false;
@@ -952,6 +969,8 @@ void Controller::resetMotionControls()
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 	if(!controller)
 		return;
+	if(manager->GetDS5GyroFixEnabled() && IsDualSense())
+		return; // v1.8.0 did not handle motion reset for SDL controllers
 	chiaki_accel_new_zero_set_active(&accel_zero, real_accel.accel_x, real_accel.accel_y, real_accel.accel_z, false);
 	chiaki_orientation_tracker_init(&orientation_tracker);
 	chiaki_orientation_tracker_update(
