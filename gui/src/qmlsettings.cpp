@@ -1939,6 +1939,7 @@ void QmlSettings::refreshAllKeys()
     emit dpadTouchShortcut2Changed();
     emit dpadTouchShortcut3Changed();
     emit dpadTouchShortcut4Changed();
+    emit languageChanged();
     emit streamMenuEnabledChanged();
     emit streamMenuShortcut1Changed();
     emit streamMenuShortcut2Changed();

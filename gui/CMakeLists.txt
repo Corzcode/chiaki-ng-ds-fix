@@ -153,15 +153,17 @@ set_target_properties(chiaki PROPERTIES
 		MACOSX_BUNDLE_ICON_FILE chiaking.icns
 		RESOURCE "${RESOURCE_FILES}")
 
-qt_add_translations(chiaki
+qt_add_lrelease(chiaki
 	TS_FILES
 		${CMAKE_CURRENT_SOURCE_DIR}/translations/chiaki_en.ts
 		${CMAKE_CURRENT_SOURCE_DIR}/translations/chiaki_zh_CN.ts
 	QM_FILES_OUTPUT_VARIABLE QM_FILES
-	RESOURCE_PREFIX "/i18n"
-	LUPDATE_OPTIONS --locations relative -no-obsolete
 )
-target_sources(chiaki PRIVATE ${QM_FILES})
+qt_add_resources(chiaki "translations"
+	PREFIX "/i18n"
+	BASE "${CMAKE_CURRENT_BINARY_DIR}"
+	FILES "${QM_FILES}"
+)
 
 install(TARGETS chiaki
 		RUNTIME DESTINATION bin
