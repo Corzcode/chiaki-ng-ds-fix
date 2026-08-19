@@ -2478,8 +2478,10 @@ void QmlMainWindow::render()
     // enabled the manually configured target peak is applied only to HDR frames;
     // SDR frames fall back to automatic (the swapchain's native color space) so
     // the numeric value never clamps/tones SDR content.
-    const bool source_is_hdr = hint_frame
-        && (hint.transfer == PL_COLOR_TRC_PQ || hint.transfer == PL_COLOR_TRC_HLG);
+    // Use libplacebo's own HDR detection so we don't miss HDR sources whose
+    // transfer isn't tagged PQ/HLG but which carry HDR mastering metadata
+    // (hdr.max_luma). This matches how the renderer itself decides HDR.
+    const bool source_is_hdr = hint_frame && pl_color_space_is_hdr(&hint);
     const int effective_target_peak = (target_peak_hdr_only && !source_is_hdr) ? 0 : target_peak;
     if (auto_inverse_tonemap && effective_target_peak > 0)
     {
