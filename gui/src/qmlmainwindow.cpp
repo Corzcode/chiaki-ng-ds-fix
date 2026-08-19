@@ -2474,15 +2474,19 @@ void QmlMainWindow::render()
     if (!hint_frame && frame_mix.num_frames)
         hint_frame = frame_mix.frames[0];
     struct pl_color_space hint = hint_frame ? hint_frame->color : pl_color_space{};
-    // Detect whether the source content is HDR. When "Target Peak HDR Only" is
-    // enabled the manually configured target peak is applied only to HDR frames;
-    // SDR frames fall back to automatic (the swapchain's native color space) so
-    // the numeric value never clamps/tones SDR content.
-    // Use libplacebo's own HDR detection so we don't miss HDR sources whose
-    // transfer isn't tagged PQ/HLG but which carry HDR mastering metadata
-    // (hdr.max_luma). This matches how the renderer itself decides HDR.
-    const bool source_is_hdr = hint_frame && pl_color_space_is_hdr(&hint);
-    const int effective_target_peak = (target_peak_hdr_only && !source_is_hdr) ? 0 : target_peak;
+    // Detect whether the *client display* is in HDR mode, i.e. whether the
+    // output / swapchain is HDR-capable. This follows the Windows HDR display
+    // setting (the OS decides whether an HDR swapchain can be created), NOT the
+    // source stream and NOT the raw monitor capability. When the client display
+    // is SDR (Windows HDR turned off) the manually configured target peak is
+    // meaningless for the output, so with "Target Peak HDR Only" enabled it
+    // falls back to automatic; when the display is HDR it is applied.
+    // sw_frame.color_space is filled by pl_swapchain_start_frame from the actual
+    // surface format, so it reflects the real output state. Use libplacebo's own
+    // HDR detection (hdr.max_luma > SDR_WHITE || transfer is HDR) so it matches
+    // how the renderer itself decides HDR.
+    const bool display_is_hdr = pl_color_space_is_hdr(&sw_frame.color_space);
+    const int effective_target_peak = (target_peak_hdr_only && !display_is_hdr) ? 0 : target_peak;
     if (auto_inverse_tonemap && effective_target_peak > 0)
     {
         auto_inverse_tonemap_params = params.color_map_params ? *params.color_map_params : pl_color_map_default_params;
