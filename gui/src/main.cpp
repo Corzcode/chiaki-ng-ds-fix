@@ -109,8 +109,11 @@ static void WriteCrashMinidump(EXCEPTION_POINTERS *exception_pointers)
 	mei.ThreadId = GetCurrentThreadId();
 	mei.ExceptionPointers = exception_pointers;
 	mei.ClientPointers = TRUE;
+	// MiniDumpNormal: thread stacks + registers + module list only. Keeps dumps
+	// small (a few MB) for end users and avoids dumping the whole address space,
+	// which would include session keys / credentials from memory.
 	BOOL ok = MiniDumpWriteDump(
-		GetCurrentProcess(), GetCurrentProcessId(), h_file, MiniDumpWithFullMemory,
+		GetCurrentProcess(), GetCurrentProcessId(), h_file, MiniDumpNormal,
 		exception_pointers ? &mei : nullptr, nullptr, nullptr);
 	CloseHandle(h_file);
 	(void)ok;
