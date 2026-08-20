@@ -344,6 +344,15 @@ private:
     QMutex render_schedule_mutex;
     QMutex placebo_state_mutex;
     QMutex placebo_swapchain_mutex;
+    // Serializes pl_gpu command recording between the render thread (start_frame
+    // -> render -> submit/enqueue) and the deferred swap thread (submit_frame +
+    // swap_buffers). libplacebo's pl_vk_steal_cmd() calls vk_cmd_begin() outside
+    // its internal recording lock when no command is currently in flight, which
+    // races with the render thread's vk_cmd_begin() on pool->sync[].value and
+    // trips the assertion in src/vulkan/command.c (vk_cmd_submit). Without this
+    // lock the deferred swap thread and render thread can both call vk_cmd_begin()
+    // concurrently and increment pool->sync[].value out from under each other.
+    QMutex placebo_gpu_mutex;
     bool render_scheduled = false;
     bool render_pending = false;
     QAtomicInteger<int> render_pending_during_cycle = 0;

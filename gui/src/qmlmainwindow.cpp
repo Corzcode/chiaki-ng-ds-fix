@@ -5775,6 +5775,9 @@ void QmlMainWindow::processDeferredSwapTask(qint64 submit_begin_us,
 
     const qint64 submit_call_begin_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
     {
+        // Must not record/steal vk_cmds concurrently with the render thread
+        // (see placebo_gpu_mutex comment in qmlmainwindow.h).
+        QMutexLocker placebo_gpu_locker(&placebo_gpu_mutex);
         QMutexLocker locker(&placebo_swapchain_mutex);
         if (!pl_swapchain_submit_frame(placebo_swapchain))
             qCWarning(chiakiGui) << "Failed to submit Placebo frame on deferred thread!";
@@ -6911,6 +6914,9 @@ void QmlMainWindow::render()
             this->swap_to_start_gap_estimate_us.storeRelease(next_swap_to_start_gap_estimate_us);
         }
     }
+    // Hold the pl_gpu recording lock for the whole render + submit/present
+    // cycle so the deferred swap thread cannot steal/begin a vk_cmd concurrently.
+    QMutexLocker placebo_gpu_locker(&placebo_gpu_mutex);
     struct pl_swapchain_frame sw_frame = {};
     {
         QMutexLocker locker(&placebo_swapchain_mutex);
