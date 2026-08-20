@@ -2552,6 +2552,18 @@ This enables:
 			<translation>Placebo</translation>
 		</message>
 		<message>
+			<source>Stats: Detailed</source>
+			<translation>Stats: Detailed</translation>
+		</message>
+		<message>
+			<source>Stats: Off</source>
+			<translation>Stats: Off</translation>
+		</message>
+		<message>
+			<source>Stats: Simple</source>
+			<translation>Stats: Simple</translation>
+		</message>
+		<message>
 			<source>Stretch</source>
 			<translation>Stretch</translation>
 		</message>
@@ -2675,6 +2687,18 @@ This enables:
 		<message>
 			<source>Sleep</source>
 			<translation>Sleep</translation>
+		</message>
+		<message>
+			<source>Stats: Detailed</source>
+			<translation>Stats: Detailed</translation>
+		</message>
+		<message>
+			<source>Stats: Off</source>
+			<translation>Stats: Off</translation>
+		</message>
+		<message>
+			<source>Stats: Simple</source>
+			<translation>Stats: Simple</translation>
 		</message>
 		<message>
 			<source>Stretch</source>

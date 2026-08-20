@@ -787,16 +787,29 @@ Item {
                 icon.source: "qrc:/icons/settings-20px.svg";
                 onClicked: root.openDisplaySettings()
                 KeyNavigation.left: customButton
-                KeyNavigation.right: {
-                    if(Chiaki.window.videoPreset == ChiakiWindow.VideoPreset.Custom)
-                        placeboSettingsButton;
-                    else
-                        displaySettingsButton;
-                }
+                KeyNavigation.right: statsButton
                 Keys.onReturnPressed: {
                     menuController.close();
                     clicked();
                 }
+                Keys.onEscapePressed: menuController.close()
+            }
+
+            ToolButton {
+                id: statsButton
+                text: {
+                    switch (Chiaki.settings.streamStatsMode) {
+                    case 1: return qsTr("Stats: Detailed")
+                    case 2: return qsTr("Stats: Simple")
+                    default: return qsTr("Stats: Off")
+                    }
+                }
+                padding: 10
+                checkable: false
+                onClicked: Chiaki.settings.streamStatsMode = (Chiaki.settings.streamStatsMode + 1) % 3
+                KeyNavigation.left: displaySettingsButton
+                KeyNavigation.right: placeboSettingsButton.visible ? placeboSettingsButton : statsButton
+                Keys.onReturnPressed: clicked()
                 Keys.onEscapePressed: menuController.close()
             }
 
@@ -807,7 +820,7 @@ Item {
                 padding: 10
                 checkable: false
                 onClicked: root.openPlaceboSettings()
-                KeyNavigation.left: displaySettingsButton
+                KeyNavigation.left: statsButton
                 visible: Chiaki.window.videoPreset == ChiakiWindow.VideoPreset.Custom
                 Keys.onReturnPressed: {
                     menuController.close();
