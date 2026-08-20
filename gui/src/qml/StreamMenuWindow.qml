@@ -322,7 +322,25 @@ Window {
                 icon.source: "qrc:/icons/settings-20px.svg"
                 onClicked: streamMenuWindow.displaySettingsRequested()
                 KeyNavigation.left: customButton
-                KeyNavigation.right: Chiaki.window.videoPreset == ChiakiWindow.VideoPreset.Custom ? placeboSettingsButton : displaySettingsButton
+                KeyNavigation.right: statsButton
+                Keys.onReturnPressed: clicked()
+                Keys.onEscapePressed: streamMenuWindow.closeRequested()
+            }
+
+            ToolButton {
+                id: statsButton
+                text: {
+                    switch (Chiaki.settings.streamStatsMode) {
+                    case 1: return qsTr("Stats: Detailed")
+                    case 2: return qsTr("Stats: Simple")
+                    default: return qsTr("Stats: Off")
+                    }
+                }
+                padding: 10
+                checkable: false
+                onClicked: Chiaki.settings.streamStatsMode = (Chiaki.settings.streamStatsMode + 1) % 3
+                KeyNavigation.left: displaySettingsButton
+                KeyNavigation.right: placeboSettingsButton.visible ? placeboSettingsButton : statsButton
                 Keys.onReturnPressed: clicked()
                 Keys.onEscapePressed: streamMenuWindow.closeRequested()
             }
@@ -335,7 +353,7 @@ Window {
                 checkable: false
                 visible: Chiaki.window.videoPreset == ChiakiWindow.VideoPreset.Custom
                 onClicked: streamMenuWindow.placeboSettingsRequested()
-                KeyNavigation.left: displaySettingsButton
+                KeyNavigation.left: statsButton
                 Keys.onReturnPressed: clicked()
                 Keys.onEscapePressed: streamMenuWindow.closeRequested()
             }

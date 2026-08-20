@@ -2604,6 +2604,18 @@ This enables:
 			<translation>Placebo</translation>
 		</message>
 		<message>
+			<source>Stats: Detailed</source>
+			<translation>统计：详细</translation>
+		</message>
+		<message>
+			<source>Stats: Off</source>
+			<translation>统计：关闭</translation>
+		</message>
+		<message>
+			<source>Stats: Simple</source>
+			<translation>统计：简易</translation>
+		</message>
+		<message>
 			<source>Stretch</source>
 			<translation>拉伸</translation>
 		</message>
@@ -2727,6 +2739,18 @@ This enables:
 		<message>
 			<source>Sleep</source>
 			<translation>睡眠</translation>
+		</message>
+		<message>
+			<source>Stats: Detailed</source>
+			<translation>统计：详细</translation>
+		</message>
+		<message>
+			<source>Stats: Off</source>
+			<translation>统计：关闭</translation>
+		</message>
+		<message>
+			<source>Stats: Simple</source>
+			<translation>统计：简易</translation>
 		</message>
 		<message>
 			<source>Stretch</source>
