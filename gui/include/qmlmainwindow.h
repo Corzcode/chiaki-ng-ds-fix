@@ -67,6 +67,8 @@ class QmlMainWindow : public QWindow
     Q_PROPERTY(int runtimeRendererBackend READ runtimeRendererBackend CONSTANT)
     Q_PROPERTY(double queueDepthAverage READ queueDepthAverage NOTIFY queueDepthAverageChanged)
     Q_PROPERTY(double pendingFrameAge READ pendingFrameAge NOTIFY pendingFrameAgeChanged)
+    Q_PROPERTY(int batteryPercent READ batteryPercent NOTIFY controllerBatteryChanged)
+    Q_PROPERTY(int batteryState READ batteryState NOTIFY controllerBatteryChanged)
 
 public:
     enum class UpdateRequestReason {
@@ -111,6 +113,9 @@ public:
     bool hasVideo() const;
     int droppedFrames() const;
     void increaseDroppedFrames();
+
+    int batteryPercent() const;
+    int batteryState() const;
 
     bool directStream() const;
     int runtimeRendererBackend() const { return static_cast<int>(render_backend); }
@@ -183,6 +188,7 @@ signals:
     void pendingFrameAgeChanged();
     void loadingTransitionCompleteChanged();
     void statsOverlayActiveChanged();
+    void controllerBatteryChanged();
 
 private:
     friend class BufferedPlaybackPacerThread;

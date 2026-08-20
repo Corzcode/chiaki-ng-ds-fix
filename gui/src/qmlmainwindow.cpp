@@ -229,7 +229,9 @@ public:
             updateTransientParent();
             if (owner)
                 owner->requestActivate();
-            raise();
+            // No raise() here: show() + the transient parent already keep the overlay
+            // above the chiaki window, and raise() on a Qt::Tool window can cause
+            // repeated activation/focus events that churn the window event queue.
             // Re-layout after show(): child panels only get their real size once the
             // top-level window is shown, which matters for the top-left simple panel.
             relayout();
@@ -2826,6 +2828,21 @@ int QmlMainWindow::droppedFrames() const
     return dropped_frames;
 }
 
+// Battery level of the first connected controller, exposed for the QML stats overlay.
+// SDL only provides coarse levels; ControllerBatteryState maps to 0=Unknown, 1=Discharging,
+// 2=Charging, 3=Full (same order as the enum in controllermanager.h).
+int QmlMainWindow::batteryPercent() const
+{
+    ControllerManager *cm = ControllerManager::GetInstance();
+    return cm ? cm->GetBatteryPercent() : 0;
+}
+
+int QmlMainWindow::batteryState() const
+{
+    ControllerManager *cm = ControllerManager::GetInstance();
+    return cm ? cm->GetBatteryPower() : 0;
+}
+
 void QmlMainWindow::increaseDroppedFrames()
 {
     dropped_frames_current.fetchAndAddRelaxed(1);
@@ -2910,10 +2927,17 @@ void QmlMainWindow::setStatsOverlayActive(bool active)
 {
     const bool previous = stats_overlay_visible;
     stats_overlay_visible = active;
-    if (stats_overlay_widget)
-        stats_overlay_widget->setOverlayVisible(active);
-    if (active)
-        updateStatsOverlayGeometry();
+    // Only touch the overlay window on actual state transitions. The QML side
+    // (re-)fires this on every stats-mode change and on visibility recalculations;
+    // calling setOverlayVisible() unconditionally would repeatedly requestActivate()
+    // and show/hide the window, stealing focus and churning the window event queue —
+    // which can destabilize the render pipeline over time.
+    if (previous != active) {
+        if (stats_overlay_widget)
+            stats_overlay_widget->setOverlayVisible(active);
+        if (active)
+            updateStatsOverlayGeometry();
+    }
     if (previous != stats_overlay_visible)
         emit statsOverlayActiveChanged();
 }
@@ -5168,7 +5192,13 @@ renderer_backend_ready:
     connect(qml_engine, &QQmlEngine::quit, this, &QWindow::close);
 
     backend = new QmlBackend(settings, this);
-    stats_overlay_widget = new StatsOverlayWidget(this, backend);
+    // Stats overlay moved to a pure QML layer (no separate top-level window): a
+    // separate always-on-top / transient window overlapping the Vulkan surface
+    // caused DWM compositing churn that corrupted the heap under load. The QML
+    // overlay renders inside the Qt Quick scene instead, and re-exports the
+    // battery level through the properties above.
+    if (ControllerManager *cm = ControllerManager::GetInstance())
+        connect(cm, &ControllerManager::ControllerBatteryChanged, this, &QmlMainWindow::controllerBatteryChanged);
     connect(backend, &QmlBackend::sessionChanged, this, [this, exit_app_on_stream_exit](StreamSession *s) {
         const bool preserve_startup_warmup = s && startup_warmup_preserve_next_session_change;
         startup_warmup_preserve_next_session_change = false;

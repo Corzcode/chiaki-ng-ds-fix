@@ -34,6 +34,12 @@ int main(int argc, char *argv[]) { return real_main(argc, argv); }
 
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
+
+#if defined(Q_OS_WIN)
+#include <windows.h>
+#include <dbghelp.h>
+#endif
 
 #ifdef CHIAKI_HAVE_WEBENGINE
 #include <QtWebEngineQuick>
@@ -76,8 +82,66 @@ static void InstallTranslator(QApplication &app, const QString &language)
 		app.installTranslator(&translator);
 }
 
+#if defined(Q_OS_WIN)
+// Write a minidump so crashes swallowed by the MinGW CRT signal handler
+// ("Segmentation fault" + exit, which bypasses WER) still produce a dump.
+// The crash thread's stack is still intact inside the signal handler, so the
+// dump contains enough to backtrace to the faulting instruction.
+static void WriteCrashMinidump(EXCEPTION_POINTERS *exception_pointers)
+{
+	static bool in_handler = false;
+	if(in_handler)
+		return;
+	in_handler = true;
+
+	wchar_t dump_dir[MAX_PATH];
+	if(!GetEnvironmentVariableW(L"LOCALAPPDATA", dump_dir, MAX_PATH))
+		wcscpy_s(dump_dir, L"C:\\Temp");
+
+	wchar_t path[MAX_PATH];
+	swprintf(path, MAX_PATH, L"%s\\CrashDumps\\chiaki_crash_%llu.dmp",
+		dump_dir, (unsigned long long)GetTickCount64());
+	HANDLE h_file = CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if(h_file == INVALID_HANDLE_VALUE)
+		return;
+
+	MINIDUMP_EXCEPTION_INFORMATION mei;
+	mei.ThreadId = GetCurrentThreadId();
+	mei.ExceptionPointers = exception_pointers;
+	mei.ClientPointers = TRUE;
+	BOOL ok = MiniDumpWriteDump(
+		GetCurrentProcess(), GetCurrentProcessId(), h_file, MiniDumpWithFullMemory,
+		exception_pointers ? &mei : nullptr, nullptr, nullptr);
+	CloseHandle(h_file);
+	(void)ok;
+}
+
+static LONG WINAPI ChiakiUnhandledExceptionFilter(EXCEPTION_POINTERS *exception_pointers)
+{
+	WriteCrashMinidump(exception_pointers);
+	// Continue to default handling so WER still records the crash.
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+static void ChiakiCrashSignalHandler(int)
+{
+	WriteCrashMinidump(nullptr);
+	_exit(1);
+}
+
+static void InstallCrashHandlers()
+{
+	SetUnhandledExceptionFilter(ChiakiUnhandledExceptionFilter);
+	signal(SIGSEGV, ChiakiCrashSignalHandler);
+	signal(SIGABRT, ChiakiCrashSignalHandler);
+}
+#endif
+
 int real_main(int argc, char *argv[])
 {
+#if defined(Q_OS_WIN)
+	InstallCrashHandlers();
+#endif
 	qRegisterMetaType<DiscoveryHost>();
 	qRegisterMetaType<RegisteredHost>();
 	qRegisterMetaType<HostMAC>();

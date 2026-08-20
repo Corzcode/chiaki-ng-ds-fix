@@ -2776,6 +2776,47 @@ To re-enable change Audio/Video to Audio and Video Enabled in the General tab of
 			<source>queue depth avg</source>
 			<translation>queue depth avg</translation>
 		</message>
+		<message>
+			<source>Battery</source>
+			<translation>Battery</translation>
+		</message>
+		<message>
+			<source>Battery: %1</source>
+			<translation>Battery: %1</translation>
+		</message>
+		<message>
+			<source>Battery: %1% %2</source>
+			<translation>Battery: %1% %2</translation>
+		</message>
+		<message>
+			<source>Mbps</source>
+			<translation>Mbps</translation>
+		</message>
+		<message>
+			<source>Mbps %1</source>
+			<translation>Mbps %1</translation>
+		</message>
+		<message>
+			<source>%1%</source>
+			<translation>%1%</translation>
+		</message>
+		<message>
+			<source>charging</source>
+			<translation>charging</translation>
+		</message>
+		<message>
+			<source>discharging</source>
+			<translation>discharging</translation>
+		</message>
+		<message>
+			<source>full</source>
+			<translation>full</translation>
+		</message>
+		<message>
+			<source>unknown</source>
+			<translation>unknown</translation>
+		</message>
+
 	</context>
 	<context>
 		<name>qmlbackend</name>
