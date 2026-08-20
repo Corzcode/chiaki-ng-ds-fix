@@ -1029,8 +1029,8 @@ DialogView {
 
                     Label {
                         Layout.alignment: Qt.AlignRight
-                        text: qsTr("(Unchecked)")
-                        visible: Chiaki.settings.rendererBackend == 0 && !Chiaki.settings.vulkanDeferredSwap
+                        text: qsTr("(Enabled)")
+                        visible: Chiaki.settings.rendererBackend == 0
                     }
 
                     Label {
