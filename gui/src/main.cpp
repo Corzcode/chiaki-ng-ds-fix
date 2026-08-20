@@ -98,9 +98,13 @@ static void WriteCrashMinidump(EXCEPTION_POINTERS *exception_pointers)
 	if(!GetEnvironmentVariableW(L"LOCALAPPDATA", dump_dir, MAX_PATH))
 		wcscpy_s(dump_dir, L"C:\\Temp");
 
+	wchar_t dump_subdir[MAX_PATH];
+	swprintf(dump_subdir, MAX_PATH, L"%s\\CrashDumps", dump_dir);
+	CreateDirectoryW(dump_subdir, nullptr); // may already exist; ignore failure
+
 	wchar_t path[MAX_PATH];
-	swprintf(path, MAX_PATH, L"%s\\CrashDumps\\chiaki_crash_%llu.dmp",
-		dump_dir, (unsigned long long)GetTickCount64());
+	swprintf(path, MAX_PATH, L"%s\\chiaki_crash_%llu.dmp",
+		dump_subdir, (unsigned long long)GetTickCount64());
 	HANDLE h_file = CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 	if(h_file == INVALID_HANDLE_VALUE)
 		return;
