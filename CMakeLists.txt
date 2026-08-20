@@ -41,7 +41,11 @@ option(CHIAKI_LIB_MINIUPNPC_EXTERNAL_PROJECT "Build miniupnpc from source via Fe
 set(CHIAKI_VERSION_MAJOR 1)
 set(CHIAKI_VERSION_MINOR 10)
 set(CHIAKI_VERSION_PATCH 0)
-set(CHIAKI_VERSION ${CHIAKI_VERSION_MAJOR}.${CHIAKI_VERSION_MINOR}.${CHIAKI_VERSION_PATCH})
+# Custom fork suffix (semver pre-release style, e.g. "-gyrofix"). Kept separate from
+# the numeric triple so the Windows version resource (chiaking.rc.in) and CPack
+# versions remain pure numeric.
+set(CHIAKI_VERSION_SUFFIX "-gyrofix")
+set(CHIAKI_VERSION ${CHIAKI_VERSION_MAJOR}.${CHIAKI_VERSION_MINOR}.${CHIAKI_VERSION_PATCH}${CHIAKI_VERSION_SUFFIX})
 
 set(CPACK_PACKAGE_NAME "chiaki-ng")
 set(CPACK_PACKAGE_DESCRIPTION "Open Source PlayStation Remote Play client for Linux, Mac, and Windows")
