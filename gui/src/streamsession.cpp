@@ -2338,13 +2338,15 @@ void StreamSession::PushHapticsFrame(uint8_t *buf, size_t buf_size)
 				right = temp_right;
 				break;
 		}
-		// DualSense haptic audio fallback: on top of the adaptive noise gate,
-		// apply an extra attenuation since actuator-level audio, once mapped to
-		// rumble motors, still feels stronger than it should.
+		// DualSense haptic audio fallback: the adaptive noise gate above has
+		// already stripped the constant road/engine content, so the remaining
+		// signal is made of real events only. A mild attenuation (0.8) is kept
+		// since actuator-level audio still feels stronger once mapped to the
+		// rumble motors, but the gate no longer needs heavy damping.
 		if(dualsense_haptic_fallback)
 		{
-			left = static_cast<uint16_t>(left * 0.4f);
-			right = static_cast<uint16_t>(right * 0.4f);
+			left = static_cast<uint16_t>(left * 0.8f);
+			right = static_cast<uint16_t>(right * 0.8f);
 		}
 		// Set minimum rumble value if above rumble min for controllers that shift up to 9 bits when rumbling
 		left = ((left > 0 && left < (1 << 9)) ? (1 << 9) : left);
