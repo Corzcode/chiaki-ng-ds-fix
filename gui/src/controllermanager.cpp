@@ -859,6 +859,20 @@ int Controller::GetBatteryPower() const
 	return static_cast<int>(battery_state);
 }
 
+bool Controller::IsWired()
+{
+#ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
+	if(!controller)
+		return false;
+	SDL_Joystick *joystick = SDL_GameControllerGetJoystick(controller);
+	if(!joystick)
+		return false;
+	return CHIAKI_SDL_JOYSTICK_GET_POWERLEVEL(joystick) == SDL_JOYSTICK_POWER_WIRED;
+#else
+	return false;
+#endif
+}
+
 int ControllerManager::GetBatteryPercent()
 {
 	for(Controller *c : open_controllers)

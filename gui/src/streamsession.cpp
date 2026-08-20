@@ -2074,6 +2074,30 @@ void StreamSession::PushHapticsFrame(uint8_t *buf, size_t buf_size)
 		return;
 	}
 #endif
+	// If a wired DualSense is connected but the dedicated haptic audio device
+	// failed to open (session started over Bluetooth, audio device not yet
+	// enumerated after a USB/BT hot-swap, transient open failure, ...), retry
+	// opening it so the stream uses the real HD haptics instead of the rumble
+	// fallback. Rate-limited to avoid spamming SDL on every frame; Bluetooth
+	// controllers report a battery level (not WIRED) and are skipped, so they
+	// keep using the rumble fallback below.
+	if(haptics_output == 0)
+	{
+		bool wired_dualsense = false;
+		for(auto controller : controllers)
+		{
+			if((controller->IsDualSense() || controller->IsDualSenseEdge()) && controller->IsWired())
+			{
+				wired_dualsense = true;
+				break;
+			}
+		}
+		if(wired_dualsense && (chiaki_time_now_monotonic_ms() - haptics_retry_timestamp_ms >= 2000))
+		{
+			haptics_retry_timestamp_ms = chiaki_time_now_monotonic_ms();
+			QMetaObject::invokeMethod(this, [this]() { ConnectHaptics(); }, Qt::QueuedConnection);
+		}
+	}
 	if((rumble_haptics_intensity != RumbleHapticsIntensity::Off) && haptics_output == 0)
 	{
 		// When the DualSense haptic audio device is unavailable (typical over
