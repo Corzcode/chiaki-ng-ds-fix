@@ -221,6 +221,10 @@ class StreamSession : public QObject
 		bool rumble_haptics_connected;
 		bool rumble_haptics_on;
 		float rumble_haptics_baseline;
+		// Timestamp (monotonic ms) of the last haptics-audio-device reopen
+		// attempt, to rate-limit retries when a wired DualSense is present but
+		// the haptic audio device failed to open (e.g. after USB/BT hot-swap).
+		uint64_t haptics_retry_timestamp_ms = 0;
 		float PS_TOUCHPAD_MAX_X, PS_TOUCHPAD_MAX_Y;
 		ChiakiControllerState keyboard_state;
 		ChiakiControllerState touch_state;
