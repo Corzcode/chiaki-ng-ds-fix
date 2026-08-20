@@ -220,6 +220,7 @@ class StreamSession : public QObject
 		QQueue<uint16_t> rumble_haptics;
 		bool rumble_haptics_connected;
 		bool rumble_haptics_on;
+		float rumble_haptics_baseline;
 		float PS_TOUCHPAD_MAX_X, PS_TOUCHPAD_MAX_Y;
 		ChiakiControllerState keyboard_state;
 		ChiakiControllerState touch_state;

@@ -386,7 +386,8 @@ StreamSession::StreamSession(const StreamSessionConnectInfo &connect_info, QObje
 	ps5_rumble_intensity(0x00),
 	ps5_trigger_intensity(0x00),
 	rumble_haptics_connected(false),
-	rumble_haptics_on(false)
+	rumble_haptics_on(false),
+	rumble_haptics_baseline(0.0f)
 {
 	mic_buf.buf = nullptr;
 	connected = false;
@@ -1769,6 +1770,7 @@ void StreamSession::ConnectRumbleHaptics()
 		return;
 	rumble_haptics = {};
 	rumble_haptics.reserve(20);
+	rumble_haptics_baseline = 0.0f;
 	connect(this, &StreamSession::RumbleHapticPushed, this, &StreamSession::QueueRumbleHaptics);
 	auto rumble_haptics_interval = RUMBLE_HAPTICS_PACKETS_PER_RUMBLE * 10;
 	auto rumble_haptics_timer = new QTimer(this);
@@ -2242,6 +2244,45 @@ void StreamSession::PushHapticsFrame(uint8_t *buf, size_t buf_size)
 		temp_right = (temp_right > HAPTIC_RUMBLE_MIN_STRENGTH) ? temp_right : 0;
 		if(temp_left == 0 && temp_right == 0)
 			return;
+		if(dualsense_haptic_fallback)
+		{
+			// DualSense haptic audio fallback: the streaming audio is being
+			// dumped into the rumble motors. Games like GT7 constantly send a
+			// low-frequency engine/road texture stream even on a flat road,
+			// which would otherwise feel like continuous, overwhelming rumble
+			// (the exact complaint when connecting over Bluetooth, where the
+			// dedicated haptic audio device is unavailable). Apply an adaptive
+			// noise gate: track the recent steady-state strength and only
+			// convert the *excess* above that baseline to rumble, so constant
+			// surfaces stay quiet while impacts/curbs/transients still rumble.
+			uint32_t raw = (temp_left > temp_right) ? temp_left : temp_right;
+			float delta = static_cast<float>(raw) - rumble_haptics_baseline;
+			if(delta > rumble_haptics_baseline * 0.5f + HAPTIC_RUMBLE_MIN_STRENGTH)
+			{
+				// Significant rise over the steady-state level: emit only the
+				// excess, and let the baseline slowly chase so sustained loud
+				// content eventually fades instead of burning the motors.
+				if(temp_left > rumble_haptics_baseline)
+					temp_left -= static_cast<uint32_t>(rumble_haptics_baseline);
+				else
+					temp_left = 0;
+				if(temp_right > rumble_haptics_baseline)
+					temp_right -= static_cast<uint32_t>(rumble_haptics_baseline);
+				else
+					temp_right = 0;
+				rumble_haptics_baseline = rumble_haptics_baseline + delta * 0.1f;
+			}
+			else
+			{
+				// Steady-state content (flat road, engine hum): suppress it
+				// and let the baseline track the current level.
+				temp_left = 0;
+				temp_right = 0;
+				rumble_haptics_baseline = rumble_haptics_baseline * 0.9f + raw * 0.1f;
+			}
+			if(temp_left == 0 && temp_right == 0)
+				return;
+		}
 		switch(rumble_haptics_intensity)
 		{
 			case RumbleHapticsIntensity::VeryWeak:
@@ -2273,9 +2314,9 @@ void StreamSession::PushHapticsFrame(uint8_t *buf, size_t buf_size)
 				right = temp_right;
 				break;
 		}
-		// DualSense haptic audio fallback: the streaming audio is being dumped
-		// into the rumble motors, so apply an extra attenuation to keep engine/
-		// road low-frequency feedback from feeling like full-strength rumble.
+		// DualSense haptic audio fallback: on top of the adaptive noise gate,
+		// apply an extra attenuation since actuator-level audio, once mapped to
+		// rumble motors, still feels stronger than it should.
 		if(dualsense_haptic_fallback)
 		{
 			left = static_cast<uint16_t>(left * 0.4f);
