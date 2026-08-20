@@ -2251,6 +2251,22 @@ Reason: %1</source>
 			<translation>游戏中显示串流统计信息</translation>
 		</message>
 		<message>
+			<source>Detailed</source>
+			<translation>详细信息</translation>
+		</message>
+		<message>
+			<source>Off</source>
+			<translation>关闭</translation>
+		</message>
+		<message>
+			<source>Simple</source>
+			<translation>简易信息</translation>
+		</message>
+		<message>
+			<source>(Simple shows bitrate and controller battery)</source>
+			<translation>(简易信息仅显示码率与手柄电量)</translation>
+		</message>
+		<message>
 			<source>Simplified Chinese</source>
 			<translation>简体中文</translation>
 		</message>
@@ -2430,6 +2446,42 @@ Please use Steam to map controller or disable Steam Input for the controller bef
 		<message>
 			<source>queue depth avg</source>
 			<translation>队列深度均值</translation>
+		</message>
+		<message>
+			<source>Battery</source>
+			<translation>电池</translation>
+		</message>
+		<message>
+			<source>charging</source>
+			<translation>充电中</translation>
+		</message>
+		<message>
+			<source>discharging</source>
+			<translation>放电中</translation>
+		</message>
+		<message>
+			<source>full</source>
+			<translation>已充满</translation>
+		</message>
+		<message>
+			<source>unknown</source>
+			<translation>未知</translation>
+		</message>
+		<message>
+			<source>Mbps %1</source>
+			<translation>Mbps %1</translation>
+		</message>
+		<message>
+			<source>Battery: %1% %2</source>
+			<translation>电池: %1% %2</translation>
+		</message>
+		<message>
+			<source>Battery: %1</source>
+			<translation>电池: %1</translation>
+		</message>
+		<message>
+			<source>Battery: unknown</source>
+			<translation>电池: 未知</translation>
 		</message>
 	</context>
 	<context>

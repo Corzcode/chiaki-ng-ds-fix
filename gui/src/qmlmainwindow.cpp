@@ -4,6 +4,7 @@
 #include "chiaki/log.h"
 #include "chiaki/time.h"
 #include "streamsession.h"
+#include "controllermanager.h"
 
 #include <qpa/qplatformnativeinterface.h>
 
@@ -111,7 +112,11 @@ public:
         , backend(backend)
     {
         setObjectName(QStringLiteral("statsOverlayWidget"));
-        setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus | Qt::WindowTransparentForInput);
+        // Qt::Tool (not Qt::ToolTip): ToolTip is always-on-top on Windows (WS_EX_TOPMOST),
+        // which caused the overlay to cover other apps. Tool is a normal top-level tool window:
+        // no taskbar entry, no focus stealing, and it can be clipped behind other windows
+        // via the transient parent.
+        setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowDoesNotAcceptFocus | Qt::WindowTransparentForInput);
         setAttribute(Qt::WA_TranslucentBackground);
         setAttribute(Qt::WA_ShowWithoutActivating);
         setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -170,8 +175,33 @@ public:
         packetLossRow = makeRow(tr("packet loss"), QColor(QStringLiteral("#ef9a9a")), titleFont, valueFont, packetLossValue);
         droppedFramesRow = makeRow(tr("dropped frames"), QColor(QStringLiteral("#ef9a9a")), titleFont, valueFont, droppedFramesValue);
         lostFramesRow = makeRow(tr("lost frames"), QColor(QStringLiteral("#ef9a9a")), titleFont, valueFont, lostFramesValue);
+        batteryRow = makeRow(tr("Battery"), QColor(QStringLiteral("#aed581")), titleFont, valueFont, batteryValue);
 
         outer->addWidget(panel, 0, Qt::AlignRight | Qt::AlignVCenter);
+        detailedPanel = panel;
+
+        // Simple panel: a single small line, top-left corner (mode == Simple).
+        auto *simple = new QWidget(this);
+        simple->setObjectName(QStringLiteral("statsSimple"));
+        simple->setStyleSheet(QStringLiteral(
+            "#statsSimple {"
+            "  background: rgba(0, 0, 0, 120);"
+            "  border-radius: 6px;"
+            "}"
+            "QLabel { color: white; }"));
+        auto *simpleLayout = new QHBoxLayout(simple);
+        simpleLayout->setContentsMargins(8, 4, 8, 4);
+        simpleLayout->setSpacing(12);
+        QFont simpleFont;
+        simpleFont.setPixelSize(12);
+        simpleMbpsLabel = new QLabel(simple);
+        simpleMbpsLabel->setFont(simpleFont);
+        simpleBatteryLabel = new QLabel(simple);
+        simpleBatteryLabel->setFont(simpleFont);
+        simpleLayout->addWidget(simpleMbpsLabel);
+        simpleLayout->addWidget(simpleBatteryLabel);
+        simplePanel = simple;
+        simple->hide();
 
         connect(owner, &QmlMainWindow::queueDepthAverageChanged, this, &StatsOverlayWidget::refresh);
         connect(owner, &QmlMainWindow::pendingFrameAgeChanged, this, &StatsOverlayWidget::refresh);
@@ -183,6 +213,8 @@ public:
             });
             setSession(backend->qmlSession());
         }
+        if (ControllerManager *cm = ControllerManager::GetInstance())
+            connect(cm, &ControllerManager::ControllerBatteryChanged, this, &StatsOverlayWidget::refresh);
         refresh();
     }
 
@@ -197,6 +229,11 @@ public:
             updateTransientParent();
             if (owner)
                 owner->requestActivate();
+            raise();
+            // Re-layout after show(): child panels only get their real size once the
+            // top-level window is shown, which matters for the top-left simple panel.
+            relayout();
+            refresh();
         } else {
             if (QWindow *overlay_window = windowHandle())
                 overlay_window->setTransientParent(nullptr);
@@ -211,6 +248,19 @@ public:
         const QRect g = owner->geometry();
         if (geometry() != g)
             setGeometry(g);
+        relayout();
+    }
+
+    void relayout()
+    {
+        // Detailed panel is positioned by `outer` (right, vertically centered).
+        // Simple panel: pinned to the top-left corner of the window. We always move it
+        // (not gated on isVisible(), because setVisible(true) takes effect asynchronously
+        // and we may be called right after it).
+        if (simplePanel) {
+            simplePanel->adjustSize();
+            simplePanel->move(8, 8);
+        }
     }
 
     void updateTransientParent()
@@ -236,39 +286,108 @@ public:
         }
     }
 
+    void setMode(int m)
+    {
+        mode = m;
+        const bool detailed = (mode == 1);
+        const bool simple = (mode == 2);
+        if (detailedPanel)
+            detailedPanel->setVisible(detailed);
+        if (simplePanel)
+            simplePanel->setVisible(simple);
+        if (simplePanel) {
+            simplePanel->adjustSize();
+            simplePanel->move(8, 8);
+        }
+        relayout();
+        refresh();
+    }
+
     void refresh()
     {
         StreamSession *session = current_session;
         const bool hasSession = session != nullptr;
+        const bool detailed = (mode == 1);
+        const bool simple = (mode == 2);
 
+        // Bitrate: shown in both modes, but only meaningful with an active session.
         bitrateRow->setVisible(hasSession);
         if (hasSession)
             bitrateValue->setText(QString::number(session->GetMeasuredBitrate(), 'f', 1));
         else
             bitrateValue->clear();
 
-        queueRow->setVisible(true);
-        queueDepthValue->setText(QString::number(owner ? owner->queueDepthAverage() : 0.0, 'f', 1));
-        pendingRow->setVisible(true);
-        pendingAgeValue->setText(tr("%1 ms").arg((owner ? owner->pendingFrameAge() : 0.0) * 1000.0, 0, 'f', 0));
+        // Detailed-only rows.
+        queueRow->setVisible(detailed);
+        pendingRow->setVisible(detailed);
+        packetLossRow->setVisible(detailed && hasSession);
+        lostFramesRow->setVisible(detailed && hasSession);
 
-        packetLossRow->setVisible(hasSession);
-        if (hasSession) {
-            const double packetLoss = session->GetAveragePacketLoss();
-            packetLossValue->setText(QStringLiteral("%1%").arg((packetLoss * 100.0), 0, 'f', 1));
-        } else {
-            packetLossValue->clear();
+        if (detailed)
+        {
+            queueDepthValue->setText(QString::number(owner ? owner->queueDepthAverage() : 0.0, 'f', 1));
+            pendingAgeValue->setText(tr("%1 ms").arg((owner ? owner->pendingFrameAge() : 0.0) * 1000.0, 0, 'f', 0));
+
+            if (hasSession) {
+                const double packetLoss = session->GetAveragePacketLoss();
+                packetLossValue->setText(QStringLiteral("%1%").arg((packetLoss * 100.0), 0, 'f', 1));
+            } else {
+                packetLossValue->clear();
+            }
+
+            const int droppedFrames = owner ? owner->droppedFrames() : 0;
+            droppedFramesValue->setText(QString::number(droppedFrames));
+            droppedFramesRow->setVisible(droppedFrames > 0);
+
+            if (hasSession)
+                lostFramesValue->setText(QString::number(session->GetFramesLost()));
+            else
+                lostFramesValue->clear();
+        }
+        else
+        {
+            droppedFramesRow->setVisible(false);
         }
 
-        const int droppedFrames = owner ? owner->droppedFrames() : 0;
-        droppedFramesValue->setText(QString::number(droppedFrames));
-        droppedFramesRow->setVisible(droppedFrames > 0);
+        // Controller battery: shown in both Detailed and Simple modes.
+        batteryRow->setVisible(detailed || simple);
+        refreshBattery();
 
-        lostFramesRow->setVisible(hasSession);
-        if (hasSession)
-            lostFramesValue->setText(QString::number(session->GetFramesLost()));
-        else
-            lostFramesValue->clear();
+        // Simple-mode single line content (top-left).
+        if (simpleMbpsLabel) {
+            if (hasSession)
+                simpleMbpsLabel->setText(tr("Mbps %1").arg(session->GetMeasuredBitrate(), 0, 'f', 1));
+            else
+                simpleMbpsLabel->clear();
+        }
+        if (simpleBatteryLabel)
+            simpleBatteryLabel->setText(batteryText());
+    }
+
+    QString batteryText()
+    {
+        ControllerManager *cm = ControllerManager::GetInstance();
+        if (!cm)
+            return tr("Battery: unknown");
+        const int percent = cm->GetBatteryPercent();
+        const ControllerBatteryState state = static_cast<ControllerBatteryState>(cm->GetBatteryPower());
+        QString stateStr;
+        switch (state)
+        {
+            case ControllerBatteryState::Charging: stateStr = tr("charging"); break;
+            case ControllerBatteryState::Full: stateStr = tr("full"); break;
+            case ControllerBatteryState::Discharging: stateStr = tr("discharging"); break;
+            default: stateStr = tr("unknown"); break;
+        }
+        if (percent > 0)
+            return tr("Battery: %1% %2").arg(percent).arg(stateStr);
+        return tr("Battery: %1").arg(stateStr);
+    }
+
+    void refreshBattery()
+    {
+        if (batteryValue)
+            batteryValue->setText(batteryText());
     }
 
 private:
@@ -281,12 +400,19 @@ private:
     QWidget *packetLossRow = nullptr;
     QWidget *droppedFramesRow = nullptr;
     QWidget *lostFramesRow = nullptr;
+    QWidget *batteryRow = nullptr;
     QLabel *bitrateValue = nullptr;
     QLabel *queueDepthValue = nullptr;
     QLabel *pendingAgeValue = nullptr;
     QLabel *packetLossValue = nullptr;
     QLabel *droppedFramesValue = nullptr;
     QLabel *lostFramesValue = nullptr;
+    QLabel *batteryValue = nullptr;
+    QWidget *detailedPanel = nullptr;
+    QWidget *simplePanel = nullptr;
+    QLabel *simpleMbpsLabel = nullptr;
+    QLabel *simpleBatteryLabel = nullptr;
+    int mode = 1;
 };
 
 class DeferredPresentPacerThread final : public QThread
@@ -2790,6 +2916,12 @@ void QmlMainWindow::setStatsOverlayActive(bool active)
         updateStatsOverlayGeometry();
     if (previous != stats_overlay_visible)
         emit statsOverlayActiveChanged();
+}
+
+void QmlMainWindow::setStatsOverlayMode(int mode)
+{
+    if (stats_overlay_widget)
+        stats_overlay_widget->setMode(mode);
 }
 
 void QmlMainWindow::noteLoadingTransitionComplete()

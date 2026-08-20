@@ -2251,6 +2251,22 @@ Reason: %1</translation>
 			<translation>Show Stream Stats During Gameplay</translation>
 		</message>
 		<message>
+			<source>Detailed</source>
+			<translation>Detailed</translation>
+		</message>
+		<message>
+			<source>Off</source>
+			<translation>Off</translation>
+		</message>
+		<message>
+			<source>Simple</source>
+			<translation>Simple</translation>
+		</message>
+		<message>
+			<source>(Simple shows bitrate and controller battery)</source>
+			<translation>(Simple shows bitrate and controller battery)</translation>
+		</message>
+		<message>
 			<source>Simplified Chinese</source>
 			<translation>Simplified Chinese</translation>
 		</message>
@@ -2430,6 +2446,42 @@ Please use Steam to map controller or disable Steam Input for the controller bef
 		<message>
 			<source>queue depth avg</source>
 			<translation>queue depth avg</translation>
+		</message>
+		<message>
+			<source>Battery</source>
+			<translation>Battery</translation>
+		</message>
+		<message>
+			<source>charging</source>
+			<translation>charging</translation>
+		</message>
+		<message>
+			<source>discharging</source>
+			<translation>discharging</translation>
+		</message>
+		<message>
+			<source>full</source>
+			<translation>full</translation>
+		</message>
+		<message>
+			<source>unknown</source>
+			<translation>unknown</translation>
+		</message>
+		<message>
+			<source>Mbps %1</source>
+			<translation>Mbps %1</translation>
+		</message>
+		<message>
+			<source>Battery: %1% %2</source>
+			<translation>Battery: %1% %2</translation>
+		</message>
+		<message>
+			<source>Battery: %1</source>
+			<translation>Battery: %1</translation>
+		</message>
+		<message>
+			<source>Battery: unknown</source>
+			<translation>Battery: unknown</translation>
 		</message>
 	</context>
 	<context>

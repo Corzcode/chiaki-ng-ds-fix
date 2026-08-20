@@ -151,6 +151,7 @@ public:
     Q_INVOKABLE void requestOverlayUpdate();
     Q_INVOKABLE void setOverlayInteractionActive(bool active);
     Q_INVOKABLE void setStatsOverlayActive(bool active);
+    Q_INVOKABLE void setStatsOverlayMode(int mode);
     Q_INVOKABLE void noteLoadingTransitionComplete();
     Q_INVOKABLE void presentStartupWarmupFrame(unsigned width, unsigned height, bool hdr);
     void armVerbosePlaceboQuietWindow();

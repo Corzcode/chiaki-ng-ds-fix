@@ -1835,15 +1835,17 @@ DialogView {
                             text: qsTr("Show Stream Stats During Gameplay")
                         }
 
-                        C.CheckBox {
+                        C.ComboBox {
+                            Layout.preferredWidth: 400
                             lastInFocusChain: true
-                            checked: Chiaki.settings.showStreamStats
-                            onToggled: Chiaki.settings.showStreamStats = !Chiaki.settings.showStreamStats
+                            model: [qsTr("Off"), qsTr("Detailed"), qsTr("Simple")]
+                            currentIndex: Chiaki.settings.streamStatsMode
+                            onActivated: index => Chiaki.settings.streamStatsMode = index
                         }
 
                         Label {
                             Layout.alignment: Qt.AlignRight
-                            text: qsTr("(Unchecked)")
+                            text: qsTr("(Simple shows bitrate and controller battery)")
                         }
                     }
                 }

@@ -17,7 +17,7 @@ Item {
     property list<Item> restoreFocusItems
     readonly property bool useSeparateMenuWindow: Chiaki.window.runtimeRendererBackend === 1
     readonly property int streamMenuHeight: 200
-    readonly property bool streamStatsVisible: Chiaki.settings.showStreamStats && Chiaki.session && !(menuController.open || menuController.closing) && !sessionLoading && !sessionError && !(Chiaki.settings.audioVideoDisabled & 0x02)
+    readonly property bool streamStatsVisible: Chiaki.settings.streamStatsMode > 0 && Chiaki.session && !(menuController.open || menuController.closing) && !sessionLoading && !sessionError && !(Chiaki.settings.audioVideoDisabled & 0x02)
     property int separateMenuX: 0
     property int separateMenuY: 0
     property int separateMenuWidth: 0
@@ -89,11 +89,14 @@ Item {
     Component.onCompleted: {
         updateSeparateMenuGeometry();
         updateOverlayInteractionActive();
+        Chiaki.window.setStatsOverlayMode(Chiaki.settings.streamStatsMode);
         Chiaki.window.setStatsOverlayActive(streamStatsVisible);
     }
     onStreamStatsVisibleChanged: {
-        if (Chiaki.window)
+        if (Chiaki.window) {
+            Chiaki.window.setStatsOverlayMode(Chiaki.settings.streamStatsMode);
             Chiaki.window.setStatsOverlayActive(streamStatsVisible);
+        }
     }
     onWidthChanged: updateSeparateMenuGeometry()
     onHeightChanged: updateSeparateMenuGeometry()
@@ -106,6 +109,14 @@ Item {
         function onWidthChanged() { view.updateSeparateMenuGeometry() }
         function onHeightChanged() { view.updateSeparateMenuGeometry() }
         function onVisibilityChanged() { view.updateSeparateMenuGeometry() }
+    }
+
+    Connections {
+        target: Chiaki.settings
+        function onStreamStatsModeChanged() {
+            Chiaki.window.setStatsOverlayMode(Chiaki.settings.streamStatsMode);
+            Chiaki.window.setStatsOverlayActive(streamStatsVisible);
+        }
     }
 
     QtObject {

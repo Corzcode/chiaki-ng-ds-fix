@@ -30,7 +30,7 @@ class QmlSettings : public QObject
     Q_PROPERTY(int noiseSuppressLevel READ noiseSuppressLevel WRITE setNoiseSuppressLevel NOTIFY noiseSuppressLevelChanged)
     Q_PROPERTY(int echoSuppressLevel READ echoSuppressLevel WRITE setEchoSuppressLevel NOTIFY echoSuppressLevelChanged)
 #endif
-    Q_PROPERTY(bool showStreamStats READ showStreamStats WRITE setShowStreamStats NOTIFY showStreamStatsChanged)
+    Q_PROPERTY(int streamStatsMode READ streamStatsMode WRITE setStreamStatsMode NOTIFY streamStatsModeChanged)
     Q_PROPERTY(bool streamerMode READ streamerMode WRITE setStreamerMode NOTIFY streamerModeChanged)
     Q_PROPERTY(float hapticOverride READ hapticOverride WRITE setHapticOverride NOTIFY hapticOverrideChanged)
     Q_PROPERTY(bool ds5GyroFix READ ds5GyroFix WRITE setDS5GyroFix NOTIFY ds5GyroFixChanged)
@@ -182,8 +182,8 @@ public:
     int audioVideoDisabled() const;
     void setAudioVideoDisabled(int disabled);
 
-    bool showStreamStats() const;
-    void setShowStreamStats(bool enabled);
+    int streamStatsMode() const;
+    void setStreamStatsMode(int mode);
 
     bool streamerMode() const;
     void setStreamerMode(bool enabled);
@@ -662,7 +662,7 @@ signals:
     void hapticsAntiLatencyChanged();
     void hapticsAntiLatencyMsChanged();
     void audioVideoDisabledChanged();
-    void showStreamStatsChanged();
+    void streamStatsModeChanged();
     void streamerModeChanged();
     void fpsLocalPS4Changed();
     void fpsRemotePS4Changed();
