@@ -5444,24 +5444,50 @@ void QmlMainWindow::update()
         render_scheduled = true;
     }
 
-    if (quick_need_sync.fetchAndStoreRelaxed(0) != 0) {
-        quick_render->polishItems();
-        if (quick_render->thread() == QThread::currentThread())
-            sync();
-        else {
-            // Same requirement as updateSwapchain(): the GUI thread must block
-            // until sync() (which runs beginFrame() -> pl_vulkan_hold_ex and
-            // touches the QQuickWindow scene graph) has finished on the render
-            // thread. Qt::QueuedConnection lets the GUI thread continue while
-            // the scene graph is mid-sync -> use-after-free in Qt6Quick when
-            // resizing/dragging (crash at Qt6Quick+0x16C310). Matches the
-            // stable 70cbd238 implementation.
-            const qint64 sync_block_begin_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
-            QMetaObject::invokeMethod(quick_render, std::bind(&QmlMainWindow::sync, this), Qt::BlockingQueuedConnection);
-            const qint64 sync_block_end_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
-            if (sync_block_end_us >= sync_block_begin_us && sync_block_end_us - sync_block_begin_us >= 12000) {
-                CHIAKI_NOISY_DEBUG().nospace()
-                    << "[latency] update_sync_block_us=" << (sync_block_end_us - sync_block_begin_us);
+    if (quick_need_sync.loadRelaxed() != 0) {
+        // Throttle to ~30 syncs/sec. UI interactions (Ctrl+O settings panel,
+        // stats overlay toggle, menu tweaks) burst several sceneChanged signals
+        // at once; running the BlockingQueuedConnection sync for each one
+        // blocks the GUI thread on the render thread repeatedly and degrades
+        // the stream into queue backlog. Keeping the connection blocking is
+        // still required to prevent the Qt6Quick scene-graph UAF on window
+        // resize (crash at Qt6Quick+0x16C310), so merge bursts instead.
+        const qint64 now_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
+        const qint64 last_sync_us = last_quick_sync_us.loadAcquire();
+        constexpr qint64 kQuickSyncMinIntervalUs = 30000; // 30 ms
+        if (now_us - last_sync_us >= kQuickSyncMinIntervalUs) {
+            quick_need_sync.storeRelaxed(0);
+            last_quick_sync_us.storeRelease(now_us);
+            quick_render->polishItems();
+            if (quick_render->thread() == QThread::currentThread())
+                sync();
+            else {
+                // Same requirement as updateSwapchain(): the GUI thread must block
+                // until sync() (which runs beginFrame() -> pl_vulkan_hold_ex and
+                // touches the QQuickWindow scene graph) has finished on the render
+                // thread. Qt::QueuedConnection lets the GUI thread continue while
+                // the scene graph is mid-sync -> use-after-free in Qt6Quick when
+                // resizing/dragging (crash at Qt6Quick+0x16C310). Matches the
+                // stable 70cbd238 implementation.
+                const qint64 sync_block_begin_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
+                QMetaObject::invokeMethod(quick_render, std::bind(&QmlMainWindow::sync, this), Qt::BlockingQueuedConnection);
+                const qint64 sync_block_end_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
+                if (sync_block_end_us >= sync_block_begin_us && sync_block_end_us - sync_block_begin_us >= 12000) {
+                    CHIAKI_NOISY_DEBUG().nospace()
+                        << "[latency] update_sync_block_us=" << (sync_block_end_us - sync_block_begin_us);
+                }
+            }
+        } else {
+            // Within the throttle window: keep the flag set and make sure a
+            // later update() picks it up so the final scene state is always
+            // synced once the burst settles.
+            if (!quick_sync_retry_scheduled.loadAcquire()) {
+                quick_sync_retry_scheduled.storeRelease(1);
+                QTimer::singleShot(30, this, [this]() {
+                    quick_sync_retry_scheduled.storeRelease(0);
+                    if (quick_need_sync.loadRelaxed() != 0)
+                        scheduleUpdate(true, UpdateRequestReason::SceneChanged);
+                });
             }
         }
     }

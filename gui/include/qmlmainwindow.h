@@ -432,6 +432,12 @@ private:
     bool quick_frame = false;
     QAtomicInteger<int> quick_need_sync = 0;
     QAtomicInteger<int> quick_need_render = 0;
+    // Throttle the BlockingQueuedConnection sync in update(): bursts of
+    // sceneChanged from UI interactions (stats overlay toggle, Ctrl+O settings
+    // panel, menu tweaks) are merged to at most ~30 syncs/sec so the GUI thread
+    // is not blocked on every single change.
+    QAtomicInteger<qint64> last_quick_sync_us = 0;
+    QAtomicInteger<int> quick_sync_retry_scheduled = 0;
     qint64 quick_begin_wait_last_us = 0;
     int quick_render_skip_next = 0;
     QAtomicInteger<int> update_pending = 0;
