@@ -1104,7 +1104,17 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
         return;
     }
 
-    connect(session, &StreamSession::FfmpegFrameAvailable, frame_thread->parent(), [this, use_opengl_renderer]() {
+    // Guard against stale callbacks from a previous session: SessionQuit sets
+    // session = nullptr and schedules deleteLater(), but the decode thread may
+    // still deliver FfmpegFrameAvailable / LoginPINRequested signals after the
+    // session object is gone. Dereferencing session then reads freed memory
+    // (crash: mov 0xd320(%rax),%rdx with rax=0 in the lambda). Capture the
+    // session identity up front and bail out when it no longer matches.
+    StreamSession *session_for_connections = session;
+
+    connect(session, &StreamSession::FfmpegFrameAvailable, frame_thread->parent(), [this, session_for_connections, use_opengl_renderer]() {
+        if (session != session_for_connections)
+            return;
         ChiakiFfmpegDecoder *decoder = session->GetFfmpegDecoder();
         if (!decoder) {
             qCCritical(chiakiGui) << "Session has no FFmpeg decoder";
@@ -1143,7 +1153,6 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
         });
     });
 
-    StreamSession *session_for_connections = session;
     connect(session, &StreamSession::SessionQuit, this, [this, session_for_connections](ChiakiQuitReason reason, const QString &reason_str) {
         if (session != session_for_connections)
             return;
@@ -1180,7 +1189,9 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
 #endif
     });
 
-    connect(session, &StreamSession::LoginPINRequested, this, [this, connect_info](bool incorrect) {
+    connect(session, &StreamSession::LoginPINRequested, this, [this, session_for_connections, connect_info](bool incorrect) {
+        if (session != session_for_connections)
+            return;
         if (!connect_info.initial_login_pin.isEmpty() && incorrect == false)
             session->SetLoginPIN(connect_info.initial_login_pin);
         else
