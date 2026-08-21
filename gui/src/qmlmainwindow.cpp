@@ -5448,8 +5448,22 @@ void QmlMainWindow::update()
         quick_render->polishItems();
         if (quick_render->thread() == QThread::currentThread())
             sync();
-        else
-            QMetaObject::invokeMethod(quick_render, std::bind(&QmlMainWindow::sync, this), Qt::QueuedConnection);
+        else {
+            // Same requirement as updateSwapchain(): the GUI thread must block
+            // until sync() (which runs beginFrame() -> pl_vulkan_hold_ex and
+            // touches the QQuickWindow scene graph) has finished on the render
+            // thread. Qt::QueuedConnection lets the GUI thread continue while
+            // the scene graph is mid-sync -> use-after-free in Qt6Quick when
+            // resizing/dragging (crash at Qt6Quick+0x16C310). Matches the
+            // stable 70cbd238 implementation.
+            const qint64 sync_block_begin_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
+            QMetaObject::invokeMethod(quick_render, std::bind(&QmlMainWindow::sync, this), Qt::BlockingQueuedConnection);
+            const qint64 sync_block_end_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
+            if (sync_block_end_us >= sync_block_begin_us && sync_block_end_us - sync_block_begin_us >= 12000) {
+                CHIAKI_NOISY_DEBUG().nospace()
+                    << "[latency] update_sync_block_us=" << (sync_block_end_us - sync_block_begin_us);
+            }
+        }
     }
 
     last_render_dispatch_us.storeRelease(static_cast<qint64>(chiaki_time_now_monotonic_us()));
@@ -6215,15 +6229,38 @@ void QmlMainWindow::updateSwapchain()
     quick_item->setSize(size());
     quick_window->resize(size());
 
+    // NOTE: resizeSwapchain()/sync() MUST run on the render thread and this
+    // GUI thread MUST wait for them to finish before returning. With plain
+    // Qt::QueuedConnection the GUI thread returns immediately while the render
+    // thread is still inside resizeSwapchain()/sync() touching the same
+    // QQuickWindow/scene graph -> use-after-free in Qt6Quick (crash at
+    // Qt6Quick+0x16C310 when dragging the window). BlockingQueuedConnection
+    // serializes the two threads. (Restored from 70cbd238 / parent of
+    // 6b1ecefa; 6b1ecefa's change to QueuedConnection is what introduced the
+    // window-drag crash.)
     if (quick_render->thread() == QThread::currentThread())
         resizeSwapchain();
-    else
-        QMetaObject::invokeMethod(quick_render, std::bind(&QmlMainWindow::resizeSwapchain, this), Qt::QueuedConnection);
+    else {
+        const qint64 resize_block_begin_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
+        QMetaObject::invokeMethod(quick_render, std::bind(&QmlMainWindow::resizeSwapchain, this), Qt::BlockingQueuedConnection);
+        const qint64 resize_block_end_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
+        if (resize_block_end_us >= resize_block_begin_us && resize_block_end_us - resize_block_begin_us >= 12000) {
+            CHIAKI_NOISY_DEBUG().nospace()
+                << "[latency] update_swapchain_resize_block_us=" << (resize_block_end_us - resize_block_begin_us);
+        }
+    }
     quick_render->polishItems();
     if (quick_render->thread() == QThread::currentThread())
         sync();
-    else
-        QMetaObject::invokeMethod(quick_render, std::bind(&QmlMainWindow::sync, this), Qt::QueuedConnection);
+    else {
+        const qint64 sync_block_begin_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
+        QMetaObject::invokeMethod(quick_render, std::bind(&QmlMainWindow::sync, this), Qt::BlockingQueuedConnection);
+        const qint64 sync_block_end_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
+        if (sync_block_end_us >= sync_block_begin_us && sync_block_end_us - sync_block_begin_us >= 12000) {
+            CHIAKI_NOISY_DEBUG().nospace()
+                << "[latency] update_swapchain_sync_block_us=" << (sync_block_end_us - sync_block_begin_us);
+        }
+    }
     QMetaObject::invokeMethod(quick_render, std::bind(&QmlMainWindow::render, this), Qt::QueuedConnection);
     const qint64 update_swapchain_end_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
     if (update_swapchain_end_us >= update_swapchain_begin_us && update_swapchain_end_us - update_swapchain_begin_us >= 12000) {
