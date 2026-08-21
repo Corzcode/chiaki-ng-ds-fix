@@ -6798,6 +6798,21 @@ void QmlMainWindow::render()
     auto schedulePostRenderWork = [this]() {
         scheduleRenderIfBacklog(UpdateRequestReason::FinalizePending);
     };
+    // Apply pending frames BEFORE pl_queue_update(). applyPendingFrame() may
+    // pl_queue_reset() on a PTS rollback (queue_pts_origin < 0 or pts <
+    // origin), which releases every frame currently held by the queue -
+    // including the frames the subsequent pl_queue_update() would put into the
+    // member `frame_mix`. Using frame_mix after that reset is a use-after-free
+    // (hint_frame = frame_mix.frames[i] -> crash reading hint_frame->crop at
+    // render()+0x2809 when a stream starts after a window drag). Running the
+    // pending-frame apply (and its possible reset) before the queue update
+    // guarantees frame_mix is always filled from the post-reset queue state.
+    if (pending_frame_waiting) {
+        if (applyPendingFrameIfQueueHasCapacity())
+            pending_frame_release_queued.storeRelease(0);
+        else
+            queuePendingFrameRelease();
+    }
     qparams.timeout = 0;
     schedule_frame_mixer_active.storeRelaxed(mixer_active ? 1 : 0);
     qparams.interpolation_threshold = mixer_active ? 0.01 : 0.0;
@@ -6863,12 +6878,6 @@ void QmlMainWindow::render()
     case PL_QUEUE_OK:
     case PL_QUEUE_MORE:
         break;
-    }
-    if (pending_frame_waiting) {
-        if (applyPendingFrameIfQueueHasCapacity())
-            pending_frame_release_queued.storeRelease(0);
-        else
-            queuePendingFrameRelease();
     }
     {
         const qint64 queue_update_after_us = static_cast<qint64>(chiaki_time_now_monotonic_us());
