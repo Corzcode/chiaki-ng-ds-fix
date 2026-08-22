@@ -10,6 +10,16 @@
 #include <SDL.h>
 #endif
 
+// SDL renamed the joystick battery event and the power-level getter in 2.24.0.
+// Map to the correct symbol based on the compiled SDL version.
+#if SDL_VERSION_ATLEAST(2, 24, 0)
+#define CHIAKI_SDL_JOYBATTERY_EVENT SDL_JOYBATTERYUPDATED
+#define CHIAKI_SDL_JOYSTICK_GET_POWERLEVEL(js) SDL_JoystickCurrentPowerLevel(js)
+#else
+#define CHIAKI_SDL_JOYBATTERY_EVENT SDL_JOYBATTERY
+#define CHIAKI_SDL_JOYSTICK_GET_POWERLEVEL(js) SDL_JoystickGetPowerLevel(js)
+#endif
+
 /* PS5 trigger effect documentation:
    https://controllers.fandom.com/wiki/Sony_DualSense#FFB_Trigger_Modes
 
@@ -256,6 +266,7 @@ void ControllerManager::HandleEvents()
 			case SDL_JOYBUTTONDOWN:
 			case SDL_JOYBUTTONUP:
 			case SDL_JOYHATMOTION:
+			case CHIAKI_SDL_JOYBATTERY_EVENT:
 			case SDL_CONTROLLERBUTTONUP:
 			case SDL_CONTROLLERBUTTONDOWN:
 			case SDL_CONTROLLERAXISMOTION:
@@ -315,6 +326,11 @@ void ControllerManager::ControllerEvent(SDL_Event event)
 			start_updating_mapping = true;
 			device_id = event.jhat.which;
 			break;
+#if SDL_VERSION_ATLEAST(2, 0, 4)
+		case CHIAKI_SDL_JOYBATTERY_EVENT:
+			device_id = event.jbattery.which;
+			break;
+#endif
 		default:
 			return;
 	}
@@ -345,6 +361,7 @@ Controller *ControllerManager::OpenController(int device_id)
 	{
 		controller = new Controller(device_id, this);
 		open_controllers[device_id] = controller;
+		connect(controller, &Controller::BatteryChanged, this, &ControllerManager::ControllerBatteryChanged);
 	}
 	controller->Ref();
 	return controller;
@@ -374,6 +391,9 @@ Controller::Controller(int device_id, ControllerManager *manager)
 		if(SDL_JoystickGetDeviceInstanceID(i) == device_id)
 		{
 			controller = SDL_GameControllerOpen(i);
+#if SDL_VERSION_ATLEAST(2, 0, 4)
+			updateBattery(CHIAKI_SDL_JOYSTICK_GET_POWERLEVEL(SDL_GameControllerGetJoystick(controller)));
+#endif
 #if SDL_VERSION_ATLEAST(2, 0, 14)
 			if(SDL_GameControllerHasSensor(controller, SDL_SENSOR_ACCEL))
 				SDL_GameControllerSetSensorEnabled(controller, SDL_SENSOR_ACCEL, SDL_TRUE);
@@ -439,6 +459,11 @@ void Controller::UpdateState(SDL_Event event)
 {
 	switch(event.type)
 	{
+#if SDL_VERSION_ATLEAST(2, 0, 4)
+		case CHIAKI_SDL_JOYBATTERY_EVENT:
+			updateBattery(event.jbattery.level);
+			return;
+#endif
 		case SDL_JOYAXISMOTION:
 			if(updating_mapping_button && enable_analog_stick_mapping)
 			{
@@ -490,6 +515,26 @@ void Controller::UpdateState(SDL_Event event)
 	emit StateChanged();
 	manager->moved = true;
 }
+
+#if SDL_VERSION_ATLEAST(2, 0, 4)
+// SDL2 only reports coarse power levels (empty/low/medium/full/wired), so map them
+// to representative percentages for display. The exact battery percentage is only
+// available by parsing the DualSense HID 0x31 input report, which is not done here.
+void Controller::updateBattery(SDL_JoystickPowerLevel level)
+{
+	switch(level)
+	{
+		case SDL_JOYSTICK_POWER_EMPTY: battery_percent = 5; battery_state = ControllerBatteryState::Discharging; break;
+		case SDL_JOYSTICK_POWER_LOW: battery_percent = 20; battery_state = ControllerBatteryState::Discharging; break;
+		case SDL_JOYSTICK_POWER_MEDIUM: battery_percent = 55; battery_state = ControllerBatteryState::Discharging; break;
+		case SDL_JOYSTICK_POWER_FULL: battery_percent = 100; battery_state = ControllerBatteryState::Full; break;
+		case SDL_JOYSTICK_POWER_WIRED: battery_percent = 100; battery_state = ControllerBatteryState::Charging; break;
+		case SDL_JOYSTICK_POWER_MAX: battery_percent = 100; battery_state = ControllerBatteryState::Full; break;
+		default: battery_percent = 0; battery_state = ControllerBatteryState::Unknown; break;
+	}
+	emit BatteryChanged();
+}
+#endif
 
 inline bool Controller::HandleButtonEvent(SDL_ControllerButtonEvent event) {
 	ChiakiControllerButton ps_btn;
@@ -802,6 +847,36 @@ QString Controller::GetVIDPIDString()
 ChiakiControllerState Controller::GetState()
 {
 	return state;
+}
+
+int Controller::GetBatteryPercent() const
+{
+	return battery_percent;
+}
+
+int Controller::GetBatteryPower() const
+{
+	return static_cast<int>(battery_state);
+}
+
+int ControllerManager::GetBatteryPercent()
+{
+	for(Controller *c : open_controllers)
+	{
+		if(c && c->IsConnected())
+			return c->GetBatteryPercent();
+	}
+	return 0;
+}
+
+int ControllerManager::GetBatteryPower()
+{
+	for(Controller *c : open_controllers)
+	{
+		if(c && c->IsConnected())
+			return c->GetBatteryPower();
+	}
+	return static_cast<int>(ControllerBatteryState::Unknown);
 }
 
 void Controller::SetDualSenseRumble(uint8_t left, uint8_t right)

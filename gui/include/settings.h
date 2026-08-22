@@ -40,6 +40,15 @@ enum class RumbleHapticsIntensity
 	VeryStrong
 };
 
+// Stream stats overlay mode. Stored under "settings/show_stream_stats";
+// legacy boolean values are still honored (true -> Detailed, false -> Off).
+enum class StreamStatsMode
+{
+	Off = 0,      // No overlay
+	Detailed = 1, // Full stats panel (bitrate, queue depth, packet loss, ...)
+	Simple = 2,   // Minimal single-line: bitrate + controller battery, top-left
+};
+
 enum class DisconnectAction
 {
 	AlwaysNothing,
@@ -261,8 +270,13 @@ class Settings : public QObject
 		RumbleHapticsIntensity GetRumbleHapticsIntensity() const;
 		void SetRumbleHapticsIntensity(RumbleHapticsIntensity intensity);
 
-		bool GetShowStreamStats() const            { return settings.value("settings/show_stream_stats", false).toBool(); }
-		void SetShowStreamStats(bool enabled)      { settings.setValue("settings/show_stream_stats", enabled); }
+		int GetStreamStatsMode() const
+		{
+			// Backward compatible: an old boolean value stored as true maps to Detailed, false maps to Off.
+			const int m = settings.value("settings/show_stream_stats", static_cast<int>(StreamStatsMode::Off)).toInt();
+			return (m >= static_cast<int>(StreamStatsMode::Off) && m <= static_cast<int>(StreamStatsMode::Simple)) ? m : static_cast<int>(StreamStatsMode::Off);
+		}
+		void SetStreamStatsMode(int mode)          { settings.setValue("settings/show_stream_stats", mode); }
 
 		bool GetStreamerMode() const		{ return settings.value("settings/streamer_mode", false).toBool(); }
 		void SetStreamerMode(bool enabled)	{ settings.setValue("settings/streamer_mode", enabled); }

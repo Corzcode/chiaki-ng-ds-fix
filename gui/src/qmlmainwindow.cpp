@@ -4,6 +4,7 @@
 #include "chiaki/log.h"
 #include "chiaki/time.h"
 #include "streamsession.h"
+#include "controllermanager.h"
 
 #include <qpa/qplatformnativeinterface.h>
 
@@ -481,6 +482,21 @@ bool QmlMainWindow::hasVideo() const
 int QmlMainWindow::droppedFrames() const
 {
     return dropped_frames;
+}
+
+// Battery level of the first connected controller, exposed for the QML stats overlay.
+// SDL only provides coarse levels; ControllerBatteryState maps to 0=Unknown, 1=Discharging,
+// 2=Charging, 3=Full (same order as the enum in controllermanager.h).
+int QmlMainWindow::batteryPercent() const
+{
+    ControllerManager *cm = ControllerManager::GetInstance();
+    return cm ? cm->GetBatteryPercent() : 0;
+}
+
+int QmlMainWindow::batteryState() const
+{
+    ControllerManager *cm = ControllerManager::GetInstance();
+    return cm ? cm->GetBatteryPower() : 0;
 }
 
 void QmlMainWindow::increaseDroppedFrames()

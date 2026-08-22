@@ -17,7 +17,7 @@ Item {
     property list<Item> restoreFocusItems
     readonly property bool useSeparateMenuWindow: Chiaki.window.runtimeRendererBackend === 1
     readonly property int streamMenuHeight: 200
-    readonly property bool streamStatsVisible: Chiaki.settings.showStreamStats && !(menuController.open || menuController.closing) && !sessionLoading && !sessionError && !(Chiaki.settings.audioVideoDisabled & 0x02)
+    readonly property bool streamStatsVisible: Chiaki.settings.streamStatsMode > 0 && !(menuController.open || menuController.closing) && !sessionLoading && !sessionError && !(Chiaki.settings.audioVideoDisabled & 0x02)
     property int separateMenuX: 0
     property int separateMenuY: 0
     property int separateMenuWidth: 0
@@ -273,178 +273,245 @@ Item {
         }
     }
 
-    Component {
-        id: streamStatsContent
-        Item {
-            id: streamStatsContentRoot
-            anchors.fill: parent
+    // Stats overlay rendered inside the Qt Quick scene (no separate top-level window).
+    // A separate overlay window overlapping the Vulkan surface caused DWM compositing
+    // churn that corrupted the heap under load; a QML layer avoids that entirely.
+    // Refreshed on a low-frequency timer instead of binding the 60Hz C++ properties,
+    // so the scene graph is not forced to repaint every video frame.
+    Item {
+        id: statsOverlay
+        anchors.fill: parent
+        visible: streamStatsVisible
+        z: 60
+
+        property real statsBitrate: 0.0
+        property real statsQueueDepth: 0.0
+        property real statsPendingAge: 0.0
+        property real statsPacketLoss: 0.0
+        property int statsDroppedFrames: 0
+        property int statsLostFrames: 0
+        property int statsBatteryPercent: 0
+        property int statsBatteryState: 0
+
+        function refreshStats() {
+            statsBitrate = Chiaki.session ? Chiaki.session.measuredBitrate : 0.0
+            statsQueueDepth = Chiaki.window.queueDepthAverage
+            statsPendingAge = Chiaki.window.pendingFrameAge
+            statsPacketLoss = Chiaki.session ? Chiaki.session.averagePacketLoss : 0.0
+            statsDroppedFrames = Chiaki.window.droppedFrames
+            statsLostFrames = Chiaki.session ? Chiaki.session.framesLost : 0
+            statsBatteryPercent = Chiaki.window.batteryPercent
+            statsBatteryState = Chiaki.window.batteryState
+        }
+
+        function batteryStateText() {
+            switch (statsBatteryState) {
+            case 2: return qsTr("charging")
+            case 3: return qsTr("full")
+            case 1: return qsTr("discharging")
+            default: return qsTr("unknown")
+            }
+        }
+
+        function batteryText() {
+            if (statsBatteryPercent > 0)
+                return qsTr("Battery: %1% %2").arg(statsBatteryPercent).arg(batteryStateText())
+            return qsTr("Battery: %1").arg(batteryStateText())
+        }
+
+        Timer {
+            interval: 250
+            running: statsOverlay.visible
+            repeat: true
+            onTriggered: statsOverlay.refreshStats()
+        }
+
+        Component.onCompleted: refreshStats()
+
+        // Detailed panel: right side, vertically centered.
+        Rectangle {
+            id: statsDetailedPanel
+            visible: Chiaki.settings.streamStatsMode === 1
+            anchors {
+                right: parent.right
+                verticalCenter: parent.verticalCenter
+                rightMargin: 5
+            }
+            // Rectangle does not auto-size to its content: bind to the layout's
+            // implicit size (plus the 14px margins on each side).
+            width: statsDetailedColumn.implicitWidth + 28
+            height: statsDetailedColumn.implicitHeight + 24
+            color: Qt.rgba(0, 0, 0, 0.55)
+            radius: 10
+
             ColumnLayout {
-                anchors {
-                    right: parent.right
-                    verticalCenter: parent.verticalCenter
-                    rightMargin: 5
-                }
+                id: statsDetailedColumn
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 8
 
-                Label {
-                    Layout.alignment: Qt.AlignRight
-                    text: "Mbps"
-                    font.pixelSize: 18
-                    visible: Chiaki.session ? true : false
-
+                RowLayout {
+                    Layout.fillWidth: true
                     Label {
-                        anchors {
-                            right: parent.left
-                            baseline: parent.baseline
-                            rightMargin: 5
-                        }
-                        text: parent.visible ? Chiaki.session.measuredBitrate.toFixed(1) : ""
-                        color: Material.accent
+                        text: qsTr("Mbps")
+                        font.pixelSize: 15
+                        color: "white"
+                        Layout.alignment: Qt.AlignRight
+                        Layout.minimumWidth: 110
+                    }
+                    Label {
+                        text: statsOverlay.statsBitrate.toFixed(1)
+                        font.pixelSize: 18
                         font.bold: true
-                        font.pixelSize: 28
+                        color: "#00a7ff"
+                        Layout.alignment: Qt.AlignRight
                     }
                 }
 
-                Label {
-                    Layout.alignment: Qt.AlignRight
-                    text: qsTr("queue depth avg")
-                    font.pixelSize: 15
-                    opacity: Chiaki.session ? 1 : 0
-                    visible: opacity > 0
-
-                    Behavior on opacity { NumberAnimation { duration: 250 } }
-
+                RowLayout {
+                    Layout.fillWidth: true
                     Label {
-                        anchors {
-                            right: parent.left
-                            baseline: parent.baseline
-                            rightMargin: 5
-                        }
-                        text: parent.visible ? Chiaki.window.queueDepthAverage.toFixed(1) : ""
+                        text: qsTr("queue depth avg")
+                        font.pixelSize: 15
+                        color: "white"
+                        Layout.alignment: Qt.AlignRight
+                        Layout.minimumWidth: 110
+                    }
+                    Label {
+                        text: statsOverlay.statsQueueDepth.toFixed(1)
+                        font.pixelSize: 18
                         font.bold: true
                         color: "#90caf9"
-                        font.pixelSize: 18
+                        Layout.alignment: Qt.AlignRight
                     }
                 }
 
-                Label {
-                    Layout.alignment: Qt.AlignRight
-                    text: qsTr("pending frame age")
-                    font.pixelSize: 15
-                    opacity: Chiaki.session ? 1 : 0
-                    visible: opacity > 0
-
-                    Behavior on opacity { NumberAnimation { duration: 250 } }
-
+                RowLayout {
+                    Layout.fillWidth: true
                     Label {
-                        anchors {
-                            right: parent.left
-                            baseline: parent.baseline
-                            rightMargin: 5
-                        }
-                        text: parent.visible ? qsTr("%1 ms").arg((Chiaki.window.pendingFrameAge * 1000.0).toFixed(0)) : ""
+                        text: qsTr("pending frame age")
+                        font.pixelSize: 15
+                        color: "white"
+                        Layout.alignment: Qt.AlignRight
+                        Layout.minimumWidth: 110
+                    }
+                    Label {
+                        text: qsTr("%1 ms").arg((statsOverlay.statsPendingAge * 1000.0).toFixed(0))
+                        font.pixelSize: 18
                         font.bold: true
                         color: "#90caf9"
-                        font.pixelSize: 18
+                        Layout.alignment: Qt.AlignRight
                     }
                 }
 
-                Label {
-                    Layout.alignment: Qt.AlignRight
-                    id: statsPacketLossLabel
-                    text: qsTr("packet loss")
-                    font.pixelSize: 15
-                    opacity: Chiaki.session ? 1 : 0
-                    visible: opacity > 0
-
-                    Behavior on opacity { NumberAnimation { duration: 250 } }
-
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: !!Chiaki.session
                     Label {
-                        anchors {
-                            right: parent.left
-                            baseline: parent.baseline
-                            rightMargin: 5
-                        }
-                        text: parent.visible ? "%1<font size=\"1\">%</font>".arg((((Chiaki.session && isFinite(Chiaki.session.averagePacketLoss)) ? Chiaki.session.averagePacketLoss : 0) * 100).toFixed(1)) : ""
+                        text: qsTr("packet loss")
+                        font.pixelSize: 15
+                        color: "white"
+                        Layout.alignment: Qt.AlignRight
+                        Layout.minimumWidth: 110
+                    }
+                    Label {
+                        text: qsTr("%1%").arg((statsOverlay.statsPacketLoss * 100.0).toFixed(1))
+                        font.pixelSize: 18
                         font.bold: true
                         color: "#ef9a9a"
-                        font.pixelSize: 18
+                        Layout.alignment: Qt.AlignRight
                     }
                 }
 
-                Label {
-                    Layout.alignment: Qt.AlignRight
-                    text: qsTr("dropped frames")
-                    font.pixelSize: 15
-                    opacity: Chiaki.session ? 1 : 0
-                    visible: opacity > 0
-
-                    Behavior on opacity { NumberAnimation { duration: 250 } }
-
+                RowLayout {
+                    Layout.fillWidth: true
                     Label {
-                        id: statsDroppedFramesLabel
-                        anchors {
-                            right: parent.left
-                            baseline: parent.baseline
-                            rightMargin: 5
-                        }
-                        text: parent.visible ? Chiaki.window.droppedFrames : ""
-                        color: "#ef9a9a"
-                        font.bold: true
+                        text: qsTr("dropped frames")
+                        font.pixelSize: 15
+                        color: "white"
+                        Layout.alignment: Qt.AlignRight
+                        Layout.minimumWidth: 110
+                    }
+                    Label {
+                        text: statsOverlay.statsDroppedFrames
                         font.pixelSize: 18
+                        font.bold: true
+                        color: "#ef9a9a"
+                        Layout.alignment: Qt.AlignRight
                     }
                 }
 
-                Label {
-                    Layout.alignment: Qt.AlignRight
-                    text: qsTr("lost frames")
-                    font.pixelSize: 15
-                    opacity: Chiaki.session ? 1 : 0
-                    visible: opacity > 0
-
-                    Behavior on opacity { NumberAnimation { duration: 250 } }
-
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: !!Chiaki.session
                     Label {
-                        anchors {
-                            right: parent.left
-                            baseline: parent.baseline
-                            rightMargin: 5
-                        }
-                        text: parent.visible ? ((Chiaki.session && isFinite(Chiaki.session.framesLost)) ? Chiaki.session.framesLost : 0) : ""
-                        color: "#ef9a9a"
-                        font.bold: true
+                        text: qsTr("lost frames")
+                        font.pixelSize: 15
+                        color: "white"
+                        Layout.alignment: Qt.AlignRight
+                        Layout.minimumWidth: 110
+                    }
+                    Label {
+                        text: statsOverlay.statsLostFrames
                         font.pixelSize: 18
+                        font.bold: true
+                        color: "#ef9a9a"
+                        Layout.alignment: Qt.AlignRight
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label {
+                        text: qsTr("Battery")
+                        font.pixelSize: 15
+                        color: "white"
+                        Layout.alignment: Qt.AlignRight
+                        Layout.minimumWidth: 110
+                    }
+                    Label {
+                        text: statsOverlay.batteryText()
+                        font.pixelSize: 18
+                        font.bold: true
+                        color: "#aed581"
+                        Layout.alignment: Qt.AlignRight
                     }
                 }
             }
         }
-    }
 
-    Item {
-        id: streamStatsInline
-        anchors.fill: parent
-        visible: streamStatsVisible && !useSeparateMenuWindow
-        Loader {
-            anchors.fill: parent
-            sourceComponent: streamStatsContent
-            active: streamStatsInline.visible
-        }
-    }
+        // Simple panel: single small line, top-left corner.
+        Rectangle {
+            id: statsSimplePanel
+            visible: Chiaki.settings.streamStatsMode === 2
+            anchors {
+                top: parent.top
+                left: parent.left
+                topMargin: 8
+                leftMargin: 8
+            }
+            // Explicit size from content (Rectangle does not auto-size).
+            width: statsSimpleRow.implicitWidth + 16
+            height: statsSimpleRow.implicitHeight + 8
+            color: Qt.rgba(0, 0, 0, 0.45)
+            radius: 6
 
-    Window {
-        id: streamStatsWindow
-        flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowTransparentForInput
-        color: "transparent"
-        modality: Qt.NonModal
-        transientParent: view.hostWindow
-        visible: streamStatsVisible && useSeparateMenuWindow
-        x: separateStatsX
-        y: separateStatsY
-        width: separateStatsWidth
-        height: separateStatsHeight
-        Loader {
-            anchors.fill: parent
-            sourceComponent: streamStatsContent
-            active: streamStatsWindow.visible
+            RowLayout {
+                id: statsSimpleRow
+                anchors.fill: parent
+                anchors.margins: 8
+                spacing: 12
+                Label {
+                    text: qsTr("Mbps %1").arg(statsOverlay.statsBitrate.toFixed(1))
+                    font.pixelSize: 12
+                    color: "white"
+                }
+                Label {
+                    text: statsOverlay.batteryText()
+                    font.pixelSize: 12
+                    color: "white"
+                }
+            }
         }
     }
 

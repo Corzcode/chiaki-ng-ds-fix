@@ -19,6 +19,17 @@
 #define PS_TOUCHPAD_MAXX 1920
 #define PS_TOUCHPAD_MAXY 1079
 
+// Simplified battery status derived from SDL_JoystickPowerLevel.
+// SDL2 only exposes coarse levels (empty/low/medium/full/wired), not an exact
+// percentage; Controller::updateBattery maps those to representative values.
+enum class ControllerBatteryState
+{
+	Unknown = 0,
+	Discharging,
+	Charging,
+	Full
+};
+
 class Controller;
 
 class ControllerManager : public QObject
@@ -64,10 +75,14 @@ class ControllerManager : public QObject
 		void creatingControllerMapping(bool creating_controller_mapping);
 		QSet<int> GetAvailableControllers();
 		Controller *OpenController(int device_id);
+		// Battery of the first connected controller (0/Unknown if none connected).
+		int GetBatteryPercent();
+		int GetBatteryPower();
 
 	signals:
 		void AvailableControllersUpdated();
 		void ControllerMoved();
+		void ControllerBatteryChanged();
 };
 
 class Controller : public QObject
@@ -88,6 +103,9 @@ class Controller : public QObject
 		bool HandleSensorEvent(SDL_ControllerSensorEvent event);
 		bool HandleTouchpadEvent(SDL_ControllerTouchpadEvent event);
 #endif
+#if SDL_VERSION_ATLEAST(2, 0, 4)
+		void updateBattery(SDL_JoystickPowerLevel level);
+#endif
 #endif
 
 		int ref;
@@ -105,6 +123,10 @@ class Controller : public QObject
 		bool has_led;
 		bool micbutton_push;
 		uint16_t firmware_version;
+		// Battery tracking (updated from SDL_JOYBATTERYUPDATED / initial power level query).
+		// percent is a coarse representative value (0/5/20/55/100), see updateBattery().
+		uint8_t battery_percent = 0;
+		ControllerBatteryState battery_state = ControllerBatteryState::Unknown;
 
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 		QMap<QPair<Sint64, Sint64>, uint8_t> touch_ids;
@@ -131,6 +153,8 @@ class Controller : public QObject
 		bool IsPS();
 		QString GetGUIDString();
 		ChiakiControllerState GetState();
+		int GetBatteryPercent() const;
+		int GetBatteryPower() const;
 		void SetRumble(uint8_t left, uint8_t right);
 		void SetTriggerEffects(uint8_t type_left, const uint8_t *data_left, uint8_t type_right, const uint8_t *data_right);
 		void SetDualsenseMic(bool on);
@@ -149,6 +173,7 @@ class Controller : public QObject
 
 	signals:
 		void StateChanged();
+		void BatteryChanged();
 		void MicButtonPush();
 		void NewButtonMapping(QString button);
 		void UpdatingControllerMapping(Controller* controller);
