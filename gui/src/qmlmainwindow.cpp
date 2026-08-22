@@ -637,6 +637,17 @@ constexpr int kAdaptiveQueueDepthBoost = 1;
 
 void QmlMainWindow::presentFrame(ChiakiFfmpegFrame frame, int32_t frames_lost)
 {
+    // Frames can still arrive on the GUI thread after the session has torn down
+    // (the decoder drains buffered frames before chiaki_ffmpeg_decoder_fini).
+    // Drop them here: otherwise presentFrame would re-enable has_video and
+    // re-schedule the render loop, which keeps presenting the (empty) QML
+    // overlay at display refresh rate forever -> stuck GPU usage on the main UI.
+    if (stream_session_active.loadAcquire() == 0) {
+        if (frame.frame)
+            av_frame_free(&frame.frame);
+        return;
+    }
+
     dropped_frames_current.fetchAndAddRelaxed(frames_lost);
 
     if (!frame.frame)
@@ -2641,7 +2652,11 @@ void QmlMainWindow::render()
         }
 
         close_started_frame(true);
-        schedule_next_update = (has_video && queue_status != PL_QUEUE_EOF)
+        // The queue is never pushed an EOF, so an empty queue reports
+        // PL_QUEUE_MORE (never PL_QUEUE_EOF). Without the session check, a stale
+        // has_video would keep this loop presenting at display refresh rate
+        // forever after the stream has ended (stuck GPU usage on the main UI).
+        schedule_next_update = ((has_video && stream_session_active.loadAcquire()) && queue_status != PL_QUEUE_EOF)
             || pending_frame_waiting
             || quick_need_sync.loadRelaxed() != 0
             || quick_need_render.loadRelaxed() != 0
@@ -2754,7 +2769,9 @@ void QmlMainWindow::render()
 
     close_started_frame(true);
 
-    schedule_next_update = (has_video && queue_status != PL_QUEUE_EOF)
+    // Same as the overlay-only branch above: without the session check a stale
+    // has_video would keep the render loop spinning after stream teardown.
+    schedule_next_update = ((has_video && stream_session_active.loadAcquire()) && queue_status != PL_QUEUE_EOF)
         || pending_frame_waiting
         || quick_need_sync.loadRelaxed() != 0
         || quick_need_render.loadRelaxed() != 0
