@@ -2200,6 +2200,16 @@ void QmlMainWindow::updateSwapchain()
 
     quick_item->setSize(size());
     quick_window->resize(size());
+    // resize() does not propagate to the content item of a window without a
+    // platform surface (QQuickRenderControl), so sync it manually. The popup
+    // overlay lives on the content item; if it stays zero-sized it never
+    // takes part in hit-testing and popups stop closing on outside presses
+    // (e.g. ComboBox dropdowns could only be dismissed by picking a row).
+    QQuickItem *quick_content = quick_window->contentItem();
+    if (quick_content && (quick_content->width() != width() || quick_content->height() != height())) {
+        quick_content->setWidth(width());
+        quick_content->setHeight(height());
+    }
 
     if (quick_render->thread() == QThread::currentThread())
         resizeSwapchain();
