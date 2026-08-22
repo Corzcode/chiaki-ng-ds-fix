@@ -2591,8 +2591,16 @@ This enables:
 			<translation>% 音量</translation>
 		</message>
 		<message>
+			<source>%1</source>
+			<translation>%1</translation>
+		</message>
+		<message>
 			<source>%1 ms</source>
 			<translation>%1 毫秒</translation>
+		</message>
+		<message>
+			<source>%1% %2</source>
+			<translation>%1% %2</translation>
 		</message>
 		<message>
 			<source>Audio Disabled in settings
@@ -2603,6 +2611,18 @@ This enables:
 		<message>
 			<source>Audio and Video Disabled</source>
 			<translation>音频和视频已禁用</translation>
+		</message>
+		<message>
+			<source>Battery</source>
+			<translation>电池</translation>
+		</message>
+		<message>
+			<source>Battery: %1</source>
+			<translation>电池：%1</translation>
+		</message>
+		<message>
+			<source>Battery: %1% %2</source>
+			<translation>电池：%1% %2</translation>
 		</message>
 		<message>
 			<source>Cancel</source>
@@ -2729,8 +2749,20 @@ To re-enable change Audio/Video to Audio and Video Enabled in the General tab of
 			<translation>缩放</translation>
 		</message>
 		<message>
+			<source>charging</source>
+			<translation>充电中</translation>
+		</message>
+		<message>
+			<source>discharging</source>
+			<translation>放电中</translation>
+		</message>
+		<message>
 			<source>dropped frames</source>
 			<translation>丢弃帧</translation>
+		</message>
+		<message>
+			<source>full</source>
+			<translation>已充满</translation>
 		</message>
 		<message>
 			<source>lost frames</source>
@@ -2747,6 +2779,10 @@ To re-enable change Audio/Video to Audio and Video Enabled in the General tab of
 		<message>
 			<source>queue depth avg</source>
 			<translation>队列深度均值</translation>
+		</message>
+		<message>
+			<source>unknown</source>
+			<translation>未知</translation>
 		</message>
 	</context>
 	<context>

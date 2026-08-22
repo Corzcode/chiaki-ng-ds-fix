@@ -319,6 +319,12 @@ Item {
             return qsTr("Battery: %1").arg(batteryStateText())
         }
 
+        function batteryValueText() {
+            if (statsBatteryPercent > 0)
+                return qsTr("%1% %2").arg(statsBatteryPercent).arg(batteryStateText())
+            return qsTr("%1").arg(batteryStateText())
+        }
+
         Timer {
             interval: 250
             running: statsOverlay.visible
@@ -338,30 +344,30 @@ Item {
                 rightMargin: 5
             }
             // Rectangle does not auto-size to its content: bind to the layout's
-            // implicit size (plus the 14px margins on each side).
-            width: statsDetailedColumn.implicitWidth + 28
-            height: statsDetailedColumn.implicitHeight + 24
+            // implicit size (plus the 12px margins on each side).
+            width: statsDetailedColumn.implicitWidth + 24
+            height: statsDetailedColumn.implicitHeight + 20
             color: Qt.rgba(0, 0, 0, 0.55)
-            radius: 10
+            radius: 8
 
             ColumnLayout {
                 id: statsDetailedColumn
                 anchors.fill: parent
-                anchors.margins: 14
-                spacing: 8
+                anchors.margins: 12
+                spacing: 6
 
                 RowLayout {
                     Layout.fillWidth: true
                     Label {
                         text: qsTr("Mbps")
-                        font.pixelSize: 15
+                        font.pixelSize: 13
                         color: "white"
                         Layout.alignment: Qt.AlignRight
-                        Layout.minimumWidth: 110
+                        Layout.minimumWidth: 100
                     }
                     Label {
                         text: statsOverlay.statsBitrate.toFixed(1)
-                        font.pixelSize: 18
+                        font.pixelSize: 15
                         font.bold: true
                         color: "#00a7ff"
                         Layout.alignment: Qt.AlignRight
@@ -372,14 +378,14 @@ Item {
                     Layout.fillWidth: true
                     Label {
                         text: qsTr("queue depth avg")
-                        font.pixelSize: 15
+                        font.pixelSize: 13
                         color: "white"
                         Layout.alignment: Qt.AlignRight
-                        Layout.minimumWidth: 110
+                        Layout.minimumWidth: 100
                     }
                     Label {
                         text: statsOverlay.statsQueueDepth.toFixed(1)
-                        font.pixelSize: 18
+                        font.pixelSize: 15
                         font.bold: true
                         color: "#90caf9"
                         Layout.alignment: Qt.AlignRight
@@ -390,14 +396,14 @@ Item {
                     Layout.fillWidth: true
                     Label {
                         text: qsTr("pending frame age")
-                        font.pixelSize: 15
+                        font.pixelSize: 13
                         color: "white"
                         Layout.alignment: Qt.AlignRight
-                        Layout.minimumWidth: 110
+                        Layout.minimumWidth: 100
                     }
                     Label {
                         text: qsTr("%1 ms").arg((statsOverlay.statsPendingAge * 1000.0).toFixed(0))
-                        font.pixelSize: 18
+                        font.pixelSize: 15
                         font.bold: true
                         color: "#90caf9"
                         Layout.alignment: Qt.AlignRight
@@ -409,14 +415,14 @@ Item {
                     visible: !!Chiaki.session
                     Label {
                         text: qsTr("packet loss")
-                        font.pixelSize: 15
+                        font.pixelSize: 13
                         color: "white"
                         Layout.alignment: Qt.AlignRight
-                        Layout.minimumWidth: 110
+                        Layout.minimumWidth: 100
                     }
                     Label {
                         text: qsTr("%1%").arg((statsOverlay.statsPacketLoss * 100.0).toFixed(1))
-                        font.pixelSize: 18
+                        font.pixelSize: 15
                         font.bold: true
                         color: "#ef9a9a"
                         Layout.alignment: Qt.AlignRight
@@ -427,14 +433,14 @@ Item {
                     Layout.fillWidth: true
                     Label {
                         text: qsTr("dropped frames")
-                        font.pixelSize: 15
+                        font.pixelSize: 13
                         color: "white"
                         Layout.alignment: Qt.AlignRight
-                        Layout.minimumWidth: 110
+                        Layout.minimumWidth: 100
                     }
                     Label {
                         text: statsOverlay.statsDroppedFrames
-                        font.pixelSize: 18
+                        font.pixelSize: 15
                         font.bold: true
                         color: "#ef9a9a"
                         Layout.alignment: Qt.AlignRight
@@ -446,14 +452,14 @@ Item {
                     visible: !!Chiaki.session
                     Label {
                         text: qsTr("lost frames")
-                        font.pixelSize: 15
+                        font.pixelSize: 13
                         color: "white"
                         Layout.alignment: Qt.AlignRight
-                        Layout.minimumWidth: 110
+                        Layout.minimumWidth: 100
                     }
                     Label {
                         text: statsOverlay.statsLostFrames
-                        font.pixelSize: 18
+                        font.pixelSize: 15
                         font.bold: true
                         color: "#ef9a9a"
                         Layout.alignment: Qt.AlignRight
@@ -464,14 +470,14 @@ Item {
                     Layout.fillWidth: true
                     Label {
                         text: qsTr("Battery")
-                        font.pixelSize: 15
+                        font.pixelSize: 13
                         color: "white"
                         Layout.alignment: Qt.AlignRight
-                        Layout.minimumWidth: 110
+                        Layout.minimumWidth: 100
                     }
                     Label {
-                        text: statsOverlay.batteryText()
-                        font.pixelSize: 18
+                        text: statsOverlay.batteryValueText()
+                        font.pixelSize: 15
                         font.bold: true
                         color: "#aed581"
                         Layout.alignment: Qt.AlignRight
