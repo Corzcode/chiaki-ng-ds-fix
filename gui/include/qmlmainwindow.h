@@ -215,6 +215,7 @@ private:
     StreamSession *session = {};
     AVBufferRef *vulkan_hw_dev_ctx = nullptr;
     double queue_depth_average = 0.0;
+    double current_video_fps = 0.0;
     double pending_frame_age = 0.0;
     uint64_t last_placebo_reset_ts = 0;
     uint64_t pending_frame_stored_us = 0;

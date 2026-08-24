@@ -653,6 +653,12 @@ void QmlMainWindow::presentFrame(ChiakiFfmpegFrame frame, int32_t frames_lost)
     if (!frame.frame)
         return;
 
+    // Track the source frame rate so the present loop can pace itself to the
+    // video cadence instead of re-presenting the same frame at monitor refresh
+    // (avoids redundant GPU blits on high-refresh displays).
+    if (frame.duration > 0.0f)
+        current_video_fps = 1.0 / frame.duration;
+
     if (frame.recovered)
     {
         const bool stored_pending = storePendingFrame(frame, true);
@@ -880,9 +886,14 @@ double QmlMainWindow::pendingFrameAge() const
 
 void QmlMainWindow::updateQueueDepthAverage(int depth)
 {
-    const double alpha = 0.15;
-    double next = queue_depth_average * (1.0 - alpha) + static_cast<double>(depth) * alpha;
-    queue_depth_average = next;
+    // Asymmetric EMA: rise slowly (a one-off depth-2 spike during arrival jitter
+    // should only nudge 1.0 -> 1.03, which the fast decay immediately undoes, so
+    // the reported average holds at ~1.0), decay quickly back to the true steady
+    // state. The depth limit is only boosted by a *sustained* deep queue (~0.5s
+    // of back-to-back depth 2), never by transient spikes.
+    const double d = static_cast<double>(depth);
+    const double alpha = (d > queue_depth_average) ? 0.03 : 0.5;
+    queue_depth_average += (d - queue_depth_average) * alpha;
     emit queueDepthAverageChanged();
 }
 
@@ -1374,9 +1385,13 @@ int QmlMainWindow::effectiveQueueDepthLimit() const
     const int configured_limit = settings ? settings->GetQueueDepthLimit() : kDefaultQueueDepthLimit;
     int depth_limit = qMax(configured_limit, 2);
 
-    const bool backlog_pending = hasPendingFrame();
+    // Only boost on a sustained EMA depth (which decays), never on the sticky
+    // pending-frame flag: while the queue is at capacity that flag stays set,
+    // which would permanently ratchet the limit up and let the pipeline hold a
+    // deep backlog forever — the exact "latches on and GPU never comes back
+    // down" state. Letting the limit return to baseline lets the queue trim.
     const double avg_depth = queue_depth_average;
-    if (backlog_pending || avg_depth >= static_cast<double>(depth_limit) - 0.25)
+    if (avg_depth >= static_cast<double>(depth_limit) - 0.25)
         depth_limit += kAdaptiveQueueDepthBoost;
 
     return depth_limit;
@@ -1986,9 +2001,35 @@ void QmlMainWindow::scheduleUpdate()
         double refresh_rate = screen() ? screen()->refreshRate() : 60.0;
         if (refresh_rate <= 1.0)
             refresh_rate = 60.0;
-        int interval_ms = has_video ? qMax(1, (int)(1000.0 / refresh_rate)) : 10;
-        if (hasPendingFrame())
-            interval_ms = qMax(1, interval_ms / 2);
+
+        // Drain at display refresh while a backlog exists, so the next frame is
+        // consumed before the pipeline saturates and starts overwriting pending
+        // frames (the periodic drops). A backlog means either a pending frame is
+        // waiting to re-enter, or the queue has already grown past a single in-
+        // flight frame. Otherwise pace to the video source so a 60fps stream on
+        // a high-refresh display isn't re-blitted ~2.4x per video period. The
+        // high-frequency window ends the moment the queue is drained below one
+        // pending frame, so it can't self-sustain the "GPU never drops" latch.
+        bool backlog = false;
+        if (has_video) {
+            backlog = hasPendingFrame();
+            if (!backlog) {
+                QMutexLocker locker(&placebo_state_mutex);
+                backlog = pl_queue_num_frames(placebo_queue) > 1;
+            }
+        }
+
+        int interval_ms;
+        if (!has_video) {
+            interval_ms = 10;
+        } else if (backlog) {
+            interval_ms = qMax(1, (int)(1000.0 / refresh_rate));
+        } else {
+            const double video_fps = current_video_fps;
+            interval_ms = video_fps > 0.0
+                ? qMax(1, (int)(1000.0 / qMin(refresh_rate, video_fps)))
+                : qMax(1, (int)(1000.0 / refresh_rate));
+        }
         update_timer->start(interval_ms);
     }
 }
