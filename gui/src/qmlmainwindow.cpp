@@ -574,7 +574,15 @@ QmlMainWindow::VideoPreset QmlMainWindow::videoPreset() const
 void QmlMainWindow::setVideoPreset(VideoPreset preset)
 {
     video_preset = preset;
+    // Rebuild the renderer's shader/cache state on a preset change so a heavy
+    // preset (e.g. HQ + Advanced Spatial's FSRCNNX neural upscaler) never leaks
+    // a compiled pipeline that keeps consuming GPU once you switch away. Changes
+    // to the preset otherwise only flip a member; the renderer cache lingers,
+    // which is why GPU use can stay pinned until the stream is restarted.
+    renderer_cache_flush_pending.storeRelaxed(1);
+    updatePlacebo();
     emit videoPresetChanged();
+    scheduleUpdate();
 }
 
 void QmlMainWindow::setSettings(Settings *new_settings)
