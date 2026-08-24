@@ -180,6 +180,8 @@ private:
     void snapshotPendingFrame();
     bool handleShortcut(QKeyEvent *event);
     bool event(QEvent *event) override;
+    void showCursor();
+    void hideCursorTimeout();
     QObject *focusObject() const override;
     void updateQueueDepthAverage(int depth);
     void updatePendingFrameAge(double age);
@@ -281,6 +283,8 @@ private:
     VkSemaphore quick_sem = VK_NULL_HANDLE;
     uint64_t quick_sem_value = 0;
     QTimer *update_timer = {};
+    QTimer *cursor_timer = {};
+    bool cursor_visible = false;
     bool quick_frame = false;
     QAtomicInteger<int> quick_need_sync = 0;
     QAtomicInteger<int> quick_need_render = 0;

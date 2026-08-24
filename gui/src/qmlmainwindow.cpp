@@ -528,13 +528,31 @@ void QmlMainWindow::grabInput()
         session->BlockInput(grab_input);
 }
 
+void QmlMainWindow::showCursor()
+{
+    if (!cursor_visible) {
+        setCursor(Qt::ArrowCursor);
+        cursor_visible = true;
+    }
+    if (cursor_timer)
+        cursor_timer->start();
+}
+
+void QmlMainWindow::hideCursorTimeout()
+{
+    if (!cursor_visible || !has_video || grab_input || !settings->GetHideCursor())
+        return;
+    setCursor(Qt::BlankCursor);
+    cursor_visible = false;
+}
+
 void QmlMainWindow::releaseInput()
 {
     if (!grab_input)
         return;
     grab_input--;
     if (!grab_input && has_video && settings->GetHideCursor())
-        setCursor(Qt::BlankCursor);
+        showCursor();
     if (session)
         session->BlockInput(grab_input);
 }
@@ -796,7 +814,7 @@ void QmlMainWindow::presentFrame(ChiakiFfmpegFrame frame, int32_t frames_lost)
     if (!has_video) {
         has_video = true;
         if (!grab_input && settings->GetHideCursor())
-            setCursor(Qt::BlankCursor);
+            showCursor();
         emit hasVideoChanged();
     }
     scheduleUpdate();
@@ -1283,7 +1301,7 @@ bool QmlMainWindow::queueStoredFrame(AVFrame *frame, double pts, float duration,
     if (!has_video) {
         has_video = true;
         if (!grab_input && settings->GetHideCursor())
-            setCursor(Qt::BlankCursor);
+            showCursor();
         emit hasVideoChanged();
     }
     scheduleUpdate();
@@ -1833,6 +1851,8 @@ renderer_backend_ready:
         ts_start = 0;
         if (has_video) {
             has_video = false;
+            cursor_timer->stop();
+            cursor_visible = true;
             setCursor(Qt::ArrowCursor);
             emit hasVideoChanged();
         }
@@ -1882,6 +1902,11 @@ renderer_backend_ready:
     update_timer = new QTimer(this);
     update_timer->setSingleShot(true);
     connect(update_timer, &QTimer::timeout, this, &QmlMainWindow::update);
+
+    cursor_timer = new QTimer(this);
+    cursor_timer->setSingleShot(true);
+    cursor_timer->setInterval(1000);
+    connect(cursor_timer, &QTimer::timeout, this, &QmlMainWindow::hideCursorTimeout);
 
     if (render_backend == RenderBackend::OpenGL) {
         if (!makeOpenGLContextCurrent())
@@ -2908,6 +2933,8 @@ bool QmlMainWindow::event(QEvent *event)
         if (static_cast<QMouseEvent*>(event)->source() != Qt::MouseEventNotSynthesized)
             return true;
         if (session && !grab_input) {
+            if (has_video && settings->GetHideCursor())
+                showCursor();
             if (event->type() == QEvent::MouseMove)
                 session->HandleMouseMoveEvent(static_cast<QMouseEvent*>(event), width(), height());
             else if (event->type() == QEvent::MouseButtonPress)
