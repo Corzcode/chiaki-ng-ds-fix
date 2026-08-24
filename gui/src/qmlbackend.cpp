@@ -328,14 +328,7 @@ bool QmlBackend::prepareFrameForPresentation(ChiakiFfmpegFrame &frame, bool use_
 
 QmlBackend::~QmlBackend()
 {
-    if(session)
-    {
-        chiaki_log_mutex.lock();
-        chiaki_log_ctx = nullptr;
-        chiaki_log_mutex.unlock();
-        session->deleteLater();
-        session = nullptr;
-    }
+    teardownSession();
 #ifdef CHIAKI_HAVE_WEBENGINE
     if(request_interceptor)
         request_interceptor->deleteLater();
@@ -345,6 +338,34 @@ QmlBackend::~QmlBackend()
     frame_thread->parent()->deleteLater();
     psn_connection_thread.quit();
     psn_connection_thread.wait();
+}
+
+void QmlBackend::teardownSession()
+{
+    if (!session)
+        return;
+
+    chiaki_log_mutex.lock();
+    chiaki_log_ctx = nullptr;
+    chiaki_log_mutex.unlock();
+
+    // 1) Stop any new signal deliveries from the session, most importantly the
+    //    frame-thread FfmpegFrameAvailable handler.
+    session->disconnect();
+
+    // 2) Drain the frame thread's already-queued lambdas. QMetaObject::invoke
+    //    queues this barrier *after* any in-flight FfmpegFrameAvailable call, so
+    //    blocking until it runs guarantees no handler still touches `session`
+    //    before we schedule its deletion below. Without this, deleteLater's
+    //    asynchronous free races the frame thread reading `session`, which is the
+    //    use-after-free crash in session->GetFfmpegDecoder().
+    if (QObject *frame_ctx = frame_thread ? frame_thread->parent() : nullptr) {
+        QMetaObject::invokeMethod(frame_ctx, []() {}, Qt::BlockingQueuedConnection);
+    }
+
+    // 3) Safe now: schedule the deferred delete and drop the member.
+    session->deleteLater();
+    session = nullptr;
 }
 
 QmlMainWindow *QmlBackend::qmlWindow() const
@@ -707,39 +728,18 @@ void QmlBackend::checkPsnConnection(const ChiakiErrorCode &err)
             break;
         case CHIAKI_ERR_HOST_DOWN:
             setConnectState(PsnConnectState::ConnectFailedStart);
-            if(session)
-            {
-                chiaki_log_mutex.lock();
-                chiaki_log_ctx = nullptr;
-                chiaki_log_mutex.unlock();
-                session->deleteLater();
-                session = nullptr;
-                setDiscoveryEnabled(true);
-            }
+            teardownSession();
+            setDiscoveryEnabled(true);
             break;
         case CHIAKI_ERR_HOST_UNREACH:
             setConnectState(PsnConnectState::ConnectFailedConsoleUnreachable);
-            if(session)
-            {
-                chiaki_log_mutex.lock();
-                chiaki_log_ctx = nullptr;
-                chiaki_log_mutex.unlock();
-                session->deleteLater();
-                session = nullptr;
-                setDiscoveryEnabled(true);
-            }
+            teardownSession();
+            setDiscoveryEnabled(true);
             break;
         default:
             setConnectState(PsnConnectState::ConnectFailed);
-            if(session)
-            {
-                chiaki_log_mutex.lock();
-                chiaki_log_ctx = nullptr;
-                chiaki_log_mutex.unlock();
-                session->deleteLater();
-                session = nullptr;
-                setDiscoveryEnabled(true);
-            }
+            teardownSession();
+            setDiscoveryEnabled(true);
             break;
     }
 }
@@ -749,11 +749,7 @@ void QmlBackend::psnSessionStart()
     try {
         session->Start();
     } catch (const Exception &e) {
-        chiaki_log_mutex.lock();
-        chiaki_log_ctx = nullptr;
-        chiaki_log_mutex.unlock();
-        session->deleteLater();
-        session = nullptr;
+        teardownSession();
         emit error(tr("Stream failed"), tr("Failed to start Stream Session: %1").arg(e.what()));
         return;
     }
@@ -981,8 +977,7 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
             logged_hw_transfer_failures.clear();
         }
 
-        session->deleteLater();
-        session = nullptr;
+        teardownSession();
         emit sessionChanged(session);
 
         sleep_inhibit->release();
@@ -1041,11 +1036,7 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
                 session->Start();
             } catch (const Exception &e) {
                 emit error(tr("Stream failed"), tr("Failed to start Stream Session: %1").arg(e.what()));
-                chiaki_log_mutex.lock();
-                chiaki_log_ctx = nullptr;
-                chiaki_log_mutex.unlock();
-                session->deleteLater();
-                session = nullptr;
+                teardownSession();
                 return;
             }
             emit sessionChanged(session);
@@ -1551,12 +1542,7 @@ void QmlBackend::stopAutoConnect()
         if(wakeup_start)
         {
             wakeup_start = false;
-            chiaki_log_mutex.lock();
-            chiaki_log_ctx = nullptr;
-            chiaki_log_mutex.unlock();
-
-            session->deleteLater();
-            session = nullptr;
+            teardownSession();
         }
     }
     emit autoConnectChanged();
@@ -2171,11 +2157,7 @@ void QmlBackend::updateDiscoveryHosts()
                 } catch (const Exception &e) {
                     emit error(tr("Stream failed"), tr("Failed to start Stream Session: %1").arg(e.what()));
                     session_start_succeeded = false;
-                    chiaki_log_mutex.lock();
-                    chiaki_log_ctx = nullptr;
-                    chiaki_log_mutex.unlock();
-                    session->deleteLater();
-                    session = nullptr;
+                    teardownSession();
                 }
                 if(session_start_succeeded)
                 {

@@ -278,6 +278,7 @@ private:
     uint32_t getStreamShortcut() const;
     void updateStreamShortcut();
     QString getExecutable();
+    void teardownSession();
 
     Settings *settings = {};
     QmlSettings *settings_qml = {};
