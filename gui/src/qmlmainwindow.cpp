@@ -1434,7 +1434,12 @@ bool QmlMainWindow::hasPendingFrame() const
 int QmlMainWindow::effectiveQueueDepthLimit() const
 {
     const int configured_limit = settings ? settings->GetQueueDepthLimit() : kDefaultQueueDepthLimit;
-    int depth_limit = qMax(configured_limit, 1);
+    // A limit of 1 deadlocks the pipeline: the queue is always at capacity, so
+    // new frames stay queued as the pending frame while the single queued frame
+    // is never consumed (its replacement is blocked), freezing video while audio
+    // keeps playing. Clamp the effective floor to 2 so a pending frame can always
+    // replace the in-flight one.
+    int depth_limit = qMax(configured_limit, 2);
 
     // Only boost on a sustained EMA depth (which decays), never on the sticky
     // pending-frame flag: while the queue is at capacity that flag stays set,
