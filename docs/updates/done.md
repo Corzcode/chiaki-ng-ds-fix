@@ -1,6 +1,10 @@
 # Completed (Done) Updates
 
 
+## Gyro Steering (2026-08-26)
+
+新增体感转向(Gyro Steering)——将 DS5/DS4 手柄的左右倾斜(roll)映射为左摇杆 X(绝对模式)，支持不原生支持陀螺仪的赛车游戏；在设置页启用并配有子页实时预览转角与输出左摇杆位置，还支持设置静止点(Set Rest Point)与反转(Invert Steering)；核心数值逻辑位于 `lib/src/gyrosteer.c`，可通过单测验证。
+
 ## Remote Connection Via PSN
 
 Enabled remote connection via PSN so users can use this instead of port forwarding on their routers as an option.[^1]
