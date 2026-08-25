@@ -2777,6 +2777,10 @@ To re-enable change Audio/Video to Audio and Video Enabled in the General tab of
 			<translation>待处理帧龄</translation>
 		</message>
 		<message>
+			<source>process delay</source>
+			<translation>处理延迟</translation>
+		</message>
+		<message>
 			<source>queue depth avg</source>
 			<translation>队列深度均值</translation>
 		</message>

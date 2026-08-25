@@ -2777,6 +2777,10 @@ To re-enable change Audio/Video to Audio and Video Enabled in the General tab of
 			<translation>pending frame age</translation>
 		</message>
 		<message>
+			<source>process delay</source>
+			<translation>process delay</translation>
+		</message>
+		<message>
 			<source>queue depth avg</source>
 			<translation>queue depth avg</translation>
 		</message>

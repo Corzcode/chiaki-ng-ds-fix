@@ -138,6 +138,7 @@ CHIAKI_EXPORT bool chiaki_ffmpeg_decoder_video_sample_cb(uint8_t *buf, size_t bu
 	ChiakiFfmpegDecoder *decoder = user;
 
 	chiaki_mutex_lock(&decoder->mutex);
+	decoder->last_sample_receive_us = chiaki_time_now_monotonic_us();
 	decoder->frames_lost += frames_lost;
 	decoder->frame_recovered = frame_recovered;
 	if(decoder->synthetic_last_sample_time_us)
@@ -281,6 +282,7 @@ CHIAKI_EXPORT ChiakiFfmpegFrame chiaki_ffmpeg_decoder_pull_frame(ChiakiFfmpegDec
 		frame->decode_error_flags |= 1;
 	}
 	decoder->frames_lost = 0;
+	int64_t last_sample_receive_us = decoder->last_sample_receive_us;
 	AVRational pkt_timebase = decoder->codec_context->pkt_timebase;
 	AVRational ctx_timebase = decoder->codec_context->time_base;
 	AVRational framerate = decoder->codec_context->framerate;
@@ -289,6 +291,7 @@ CHIAKI_EXPORT ChiakiFfmpegFrame chiaki_ffmpeg_decoder_pull_frame(ChiakiFfmpegDec
 	ChiakiFfmpegFrame frame_plus_stats = {};
 	frame_plus_stats.frame = frame;
 	frame_plus_stats.recovered = recovered;
+	frame_plus_stats.receive_us = last_sample_receive_us;
 	if(frame)
 	{
 		chiaki_ffmpeg_frame_get_timing(

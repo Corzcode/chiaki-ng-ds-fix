@@ -984,7 +984,7 @@ DialogView {
 
                     C.Slider {
                         Layout.preferredWidth: 360
-                        from: 2
+                        from: 1
                         to: 5
                         stepSize: 1
                         value: Chiaki.settings.queueDepthLimit

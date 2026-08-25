@@ -26,6 +26,13 @@ struct chiaki_ffmpeg_frame_t
 	double pts;
 	double duration;
 	bool recovered;
+	/**
+	 * Monotonic time (microseconds) when the corresponding whole frame was
+	 * received on the network thread and submitted to the decoder. Used to
+	 * measure the end-to-end decode/render processing latency: from this
+	 * moment until presentFrame() digests it on the GUI thread.
+	 */
+	int64_t receive_us;
 };
 
 struct chiaki_ffmpeg_decoder_t
@@ -50,6 +57,7 @@ struct chiaki_ffmpeg_decoder_t
 	double synthetic_candidate_duration_us;
 	uint64_t synthetic_last_sample_time_us;
 	uint8_t synthetic_candidate_count;
+	int64_t last_sample_receive_us;
 };
 
 CHIAKI_EXPORT ChiakiErrorCode chiaki_ffmpeg_decoder_init(ChiakiFfmpegDecoder *decoder, ChiakiLog *log,

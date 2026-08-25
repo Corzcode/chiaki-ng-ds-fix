@@ -287,6 +287,7 @@ Item {
         property real statsBitrate: 0.0
         property real statsQueueDepth: 0.0
         property real statsPendingAge: 0.0
+        property real statsProcessingLatency: 0.0
         property real statsPacketLoss: 0.0
         property int statsDroppedFrames: 0
         property int statsLostFrames: 0
@@ -297,6 +298,7 @@ Item {
             statsBitrate = Chiaki.session ? Chiaki.session.measuredBitrate : 0.0
             statsQueueDepth = Chiaki.window.queueDepthAverage
             statsPendingAge = Chiaki.window.pendingFrameAge
+            statsProcessingLatency = Chiaki.window.processingLatency
             statsPacketLoss = Chiaki.session ? Chiaki.session.averagePacketLoss : 0.0
             statsDroppedFrames = Chiaki.window.droppedFrames
             statsLostFrames = Chiaki.session ? Chiaki.session.framesLost : 0
@@ -403,6 +405,24 @@ Item {
                     }
                     Label {
                         text: qsTr("%1 ms").arg((statsOverlay.statsPendingAge * 1000.0).toFixed(0))
+                        font.pixelSize: 15
+                        font.bold: true
+                        color: "#90caf9"
+                        Layout.alignment: Qt.AlignRight
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label {
+                        text: qsTr("process delay")
+                        font.pixelSize: 13
+                        color: "white"
+                        Layout.alignment: Qt.AlignRight
+                        Layout.minimumWidth: 100
+                    }
+                    Label {
+                        text: qsTr("%1 ms").arg((statsOverlay.statsProcessingLatency * 1000.0).toFixed(0))
                         font.pixelSize: 15
                         font.bold: true
                         color: "#90caf9"

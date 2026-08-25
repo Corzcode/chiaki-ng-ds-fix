@@ -657,7 +657,7 @@ void QmlMainWindow::show()
 }
 
 namespace {
-constexpr int kDefaultQueueDepthLimit = 2;
+constexpr int kDefaultQueueDepthLimit = 1;
 constexpr int kAdaptiveQueueDepthBoost = 1;
 }
 
@@ -678,6 +678,22 @@ void QmlMainWindow::presentFrame(ChiakiFfmpegFrame frame, int32_t frames_lost)
 
     if (!frame.frame)
         return;
+
+    // End-to-end processing latency: time from when the frame was received and
+    // submitted to the decoder (network thread) until it reaches the present
+    // layer here (GUI thread). Captures the cross-thread hop, hw transfer and
+    // present-queue admission. Smoothed EMA for a readable baseline to observe
+    // before/after the latency optimizations.
+    if (frame.receive_us > 0) {
+        const uint64_t now_us = chiaki_time_now_monotonic_us();
+        const double lat_us = now_us > static_cast<uint64_t>(frame.receive_us)
+            ? static_cast<double>(now_us - frame.receive_us)
+            : 0.0;
+        const double lat_s = lat_us / 1000000.0;
+        const double alpha = 0.2;
+        processing_latency += (lat_s - processing_latency) * alpha;
+        emit processingLatencyChanged();
+    }
 
     // Track the source frame rate so the present loop can pace itself to the
     // video cadence instead of re-presenting the same frame at monitor refresh
@@ -908,6 +924,11 @@ double QmlMainWindow::pendingFrameAge() const
 {
     QMutexLocker locker(&pending_frame_age_mutex);
     return pending_frame_age;
+}
+
+double QmlMainWindow::processingLatency() const
+{
+    return processing_latency;
 }
 
 void QmlMainWindow::updateQueueDepthAverage(int depth)
@@ -1409,15 +1430,21 @@ bool QmlMainWindow::hasPendingFrame() const
 int QmlMainWindow::effectiveQueueDepthLimit() const
 {
     const int configured_limit = settings ? settings->GetQueueDepthLimit() : kDefaultQueueDepthLimit;
-    int depth_limit = qMax(configured_limit, 2);
+    int depth_limit = qMax(configured_limit, 1);
 
     // Only boost on a sustained EMA depth (which decays), never on the sticky
     // pending-frame flag: while the queue is at capacity that flag stays set,
     // which would permanently ratchet the limit up and let the pipeline hold a
     // deep backlog forever — the exact "latches on and GPU never comes back
     // down" state. Letting the limit return to baseline lets the queue trim.
+    //
+    // With the baseline now 1 (steady single in-flight frame), the boost only
+    // releases headroom to 2 when the EMA genuinely sustains ~2 frames. Note the
+    // queue depth is clamped by this very limit, so under normal pacing the EMA
+    // stays ~1 and the boost stays off; it exists purely as a safety valve for
+    // sustained decode bursts, and decays right back to baseline.
     const double avg_depth = queue_depth_average;
-    if (avg_depth >= static_cast<double>(depth_limit) - 0.25)
+    if (avg_depth >= 1.75)
         depth_limit += kAdaptiveQueueDepthBoost;
 
     return depth_limit;

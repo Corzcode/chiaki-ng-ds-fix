@@ -55,6 +55,7 @@ class QmlMainWindow : public QWindow
     Q_PROPERTY(int runtimeRendererBackend READ runtimeRendererBackend CONSTANT)
     Q_PROPERTY(double queueDepthAverage READ queueDepthAverage NOTIFY queueDepthAverageChanged)
     Q_PROPERTY(double pendingFrameAge READ pendingFrameAge NOTIFY pendingFrameAgeChanged)
+    Q_PROPERTY(double processingLatency READ processingLatency NOTIFY processingLatencyChanged)
     Q_PROPERTY(int batteryPercent READ batteryPercent NOTIFY controllerBatteryChanged)
     Q_PROPERTY(int batteryState READ batteryState NOTIFY controllerBatteryChanged)
 
@@ -103,6 +104,7 @@ public:
 
     double queueDepthAverage() const;
     double pendingFrameAge() const;
+    double processingLatency() const;
 
     bool amdCard() const;
     bool nvidiaCard() const;
@@ -147,6 +149,7 @@ signals:
     void directStreamChanged();
     void queueDepthAverageChanged();
     void pendingFrameAgeChanged();
+    void processingLatencyChanged();
     void controllerBatteryChanged();
 
 private:
@@ -219,6 +222,7 @@ private:
     double queue_depth_average = 0.0;
     double current_video_fps = 0.0;
     double pending_frame_age = 0.0;
+    double processing_latency = 0.0;
     uint64_t last_placebo_reset_ts = 0;
     uint64_t pending_frame_stored_us = 0;
     mutable QMutex pending_frame_age_mutex;
