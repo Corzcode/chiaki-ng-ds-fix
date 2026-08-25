@@ -1915,6 +1915,14 @@ Reason: %1</translation>
 			<translation>DS5 Gyro Fix:</translation>
 		</message>
 		<message>
+			<source>Enable Gyro Steering (tilt to steer)</source>
+			<translation>Enable Gyro Steering (tilt to steer)</translation>
+		</message>
+		<message>
+			<source>Gyro Steering:</source>
+			<translation>Gyro Steering:</translation>
+		</message>
+		<message>
 			<source>Default</source>
 			<translation>Default</translation>
 		</message>
@@ -3010,6 +3018,65 @@ To re-enable change Audio/Video to Audio and Video Enabled in the General tab of
 		<message>
 			<source>Touchpad</source>
 			<translation>Touchpad</translation>
+		</message>
+	</context>
+	<context>
+		<name>GyroSteerSettingsDialog</name>
+		<message>
+			<source>°</source>
+			<translation>°</translation>
+		</message>
+		<message>
+			<source>(3°)</source>
+			<translation>(3°)</translation>
+		</message>
+		<message>
+			<source>(30°)</source>
+			<translation>(30°)</translation>
+		</message>
+		<message>
+			<source>(Recenter)</source>
+			<translation>(Recenter)</translation>
+		</message>
+		<message>
+			<source>(Unchecked)</source>
+			<translation>(Unchecked)</translation>
+		</message>
+		<message>
+			<source>Deadzone:</source>
+			<translation>Deadzone:</translation>
+		</message>
+		<message>
+			<source>Gyro Steering</source>
+			<translation>Gyro Steering</translation>
+		</message>
+		<message>
+			<source>Invert Steering:</source>
+			<translation>Invert Steering:</translation>
+		</message>
+		<message>
+			<source>Invert steering direction</source>
+			<translation>Invert steering direction</translation>
+		</message>
+		<message>
+			<source>Output Left Stick X:</source>
+			<translation>Output Left Stick X:</translation>
+		</message>
+		<message>
+			<source>Recognized Steering Angle:</source>
+			<translation>Recognized Steering Angle:</translation>
+		</message>
+		<message>
+			<source>Rest Point:</source>
+			<translation>Rest Point:</translation>
+		</message>
+		<message>
+			<source>Sensitivity (Full Deflection):</source>
+			<translation>Sensitivity (Full Deflection):</translation>
+		</message>
+		<message>
+			<source>Set Rest Point</source>
+			<translation>Set Rest Point</translation>
 		</message>
 	</context>
 </TS>

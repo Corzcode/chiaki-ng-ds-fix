@@ -1915,6 +1915,14 @@ Reason: %1</source>
 			<translation>DS5 陀螺仪修复：</translation>
 		</message>
 		<message>
+			<source>Enable Gyro Steering (tilt to steer)</source>
+			<translation>启用体感转向(倾斜方向盘)</translation>
+		</message>
+		<message>
+			<source>Gyro Steering:</source>
+			<translation>体感转向:</translation>
+		</message>
+		<message>
 			<source>Default</source>
 			<translation>默认</translation>
 		</message>
@@ -3010,6 +3018,65 @@ To re-enable change Audio/Video to Audio and Video Enabled in the General tab of
 		<message>
 			<source>Touchpad</source>
 			<translation>触控板</translation>
+		</message>
+	</context>
+	<context>
+		<name>GyroSteerSettingsDialog</name>
+		<message>
+			<source>°</source>
+			<translation>°</translation>
+		</message>
+		<message>
+			<source>(3°)</source>
+			<translation>(3°)</translation>
+		</message>
+		<message>
+			<source>(30°)</source>
+			<translation>(30°)</translation>
+		</message>
+		<message>
+			<source>(Recenter)</source>
+			<translation>(重新居中)</translation>
+		</message>
+		<message>
+			<source>(Unchecked)</source>
+			<translation>（未选中）</translation>
+		</message>
+		<message>
+			<source>Deadzone:</source>
+			<translation>死区:</translation>
+		</message>
+		<message>
+			<source>Gyro Steering</source>
+			<translation>体感转向</translation>
+		</message>
+		<message>
+			<source>Invert Steering:</source>
+			<translation>反向转向:</translation>
+		</message>
+		<message>
+			<source>Invert steering direction</source>
+			<translation>反向转向方向</translation>
+		</message>
+		<message>
+			<source>Output Left Stick X:</source>
+			<translation>输出左摇杆 X:</translation>
+		</message>
+		<message>
+			<source>Recognized Steering Angle:</source>
+			<translation>识别转向角:</translation>
+		</message>
+		<message>
+			<source>Rest Point:</source>
+			<translation>回正基准:</translation>
+		</message>
+		<message>
+			<source>Sensitivity (Full Deflection):</source>
+			<translation>灵敏度(满偏角度):</translation>
+		</message>
+		<message>
+			<source>Set Rest Point</source>
+			<translation>设置回正基准</translation>
 		</message>
 	</context>
 </TS>
