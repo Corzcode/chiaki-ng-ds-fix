@@ -1881,6 +1881,7 @@ void QmlSettings::setSettings(Settings *new_settings)
     connect(settings, &Settings::RegisteredHostsUpdated, this, &QmlSettings::registeredHostsChanged);
     connect(settings, &Settings::ProfilesUpdated, this, &QmlSettings::profilesChanged);
     refreshAllKeys();
+    applyGyroSteerConfig();
 }
 
 bool QmlSettings::gyroSteering() const

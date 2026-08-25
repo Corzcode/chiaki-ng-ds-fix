@@ -21,6 +21,8 @@
 
 #include <cstring>
 
+#include <cstdlib>
+
 #include <math.h>
 
 #define SETSU_UPDATE_INTERVAL_MS 4
@@ -1053,6 +1055,19 @@ void StreamSession::WaitHaptics()
 		QTimer::singleShot(14000, this, &StreamSession::ConnectHaptics);
 }
 
+#ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
+void StreamSession::MergeGyroSteer(ChiakiControllerState &state)
+{
+	auto gyro_steer = ControllerManager::GetInstance()->GetGyroSteerBridge();
+	if(!gyro_steer || !gyro_steer->IsActive())
+		return;
+	int16_t gs_left_x = (int16_t)(gyro_steer->GetLeftX() * 32767.0f);
+	// 物理摇杆优先:体感仅在偏移更大时接管(等价 MAX_ABS)
+	if(gs_left_x != 0 && std::abs(state.left_x) < std::abs(gs_left_x))
+		state.left_x = gs_left_x;
+}
+#endif
+
 void StreamSession::DpadSendFeedbackState()
 {
 	ChiakiControllerState state;
@@ -1076,14 +1091,7 @@ void StreamSession::DpadSendFeedbackState()
 	chiaki_controller_state_or(&state, &state, &touch_state);
 
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
-	auto gyro_steer = ControllerManager::GetInstance()->GetGyroSteerBridge();
-	if(gyro_steer && gyro_steer->IsActive())
-	{
-		float gs_left_x = gyro_steer->GetLeftX();
-		// 物理摇杆优先:体感仅在偏移更大时接管(等价 MAX_ABS)
-		if(fabsf(state.left_x) < fabsf(gs_left_x))
-			state.left_x = gs_left_x;
-	}
+	MergeGyroSteer(state);
 #endif
 
 	if(input_block)
@@ -1143,14 +1151,7 @@ void StreamSession::SendFeedbackState()
 	chiaki_controller_state_or(&state, &state, &touch_state);
 
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
-	auto gyro_steer = ControllerManager::GetInstance()->GetGyroSteerBridge();
-	if(gyro_steer && gyro_steer->IsActive())
-	{
-		float gs_left_x = gyro_steer->GetLeftX();
-		// 物理摇杆优先:体感仅在偏移更大时接管(等价 MAX_ABS)
-		if(fabsf(state.left_x) < fabsf(gs_left_x))
-			state.left_x = gs_left_x;
-	}
+	MergeGyroSteer(state);
 #endif
 
 	if(input_block)

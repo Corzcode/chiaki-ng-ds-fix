@@ -13,15 +13,13 @@ GyroSteerBridge::GyroSteerBridge(QObject *parent)
 
 void GyroSteerBridge::ApplyConfig(const Settings *settings)
 {
-	bool was_enabled = steer.enabled;
-	bool was_valid = steer.rest_valid;
 	chiaki_gyro_steer_init(&steer,
 		settings->GetGyroSteeringEnabled(),
 		settings->GetGyroSteeringInvert(),
 		settings->GetGyroSteeringDeadzone(),
 		settings->GetGyroSteeringSensitivity());
-	// 从禁用变为启用(或尚无 rest)时,以最近的姿态为回正中心
-	if(steer.enabled && (!was_enabled || !was_valid))
+	// 任何配置变更后都以当前握持为新回正中心
+	if(steer.enabled)
 		rest_pending = true;
 	emit StateChanged();
 }
