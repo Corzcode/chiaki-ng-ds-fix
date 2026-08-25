@@ -3,6 +3,7 @@
 #include <streamsession.h>
 #include <settings.h>
 #include <controllermanager.h>
+#include <gyrosteer.h>
 
 #include <chiaki/base64.h>
 #include <chiaki/streamconnection.h>
@@ -19,6 +20,8 @@
 #include <algorithm>
 
 #include <cstring>
+
+#include <math.h>
 
 #define SETSU_UPDATE_INTERVAL_MS 4
 #define STEAMDECK_UPDATE_INTERVAL_MS 4
@@ -414,6 +417,13 @@ StreamSession::StreamSession(const StreamSessionConnectInfo &connect_info, QObje
 	if(connect_info.buttons_by_pos)
 		ControllerManager::GetInstance()->SetButtonsByPos();
 	ControllerManager::GetInstance()->SetDS5GyroFixEnabled(connect_info.settings->GetDS5GyroFixEnabled());
+	ControllerManager::GetInstance()->ApplyGyroSteerSettings(connect_info.settings);
+	auto gyro_steer = ControllerManager::GetInstance()->GetGyroSteerBridge();
+	if(gyro_steer)
+	{
+		connect(gyro_steer, &GyroSteerBridge::StateChanged, this, &StreamSession::SendFeedbackState);
+		gyro_steer->RequestRecenter(); // 流启动:以当前握持姿态为回正中心
+	}
 #endif
 #if CHIAKI_GUI_ENABLE_SETSU
 	setsu_motion_device = nullptr;
@@ -1065,6 +1075,17 @@ void StreamSession::DpadSendFeedbackState()
 	chiaki_controller_state_or(&state, &state, &keyboard_state);
 	chiaki_controller_state_or(&state, &state, &touch_state);
 
+#ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
+	auto gyro_steer = ControllerManager::GetInstance()->GetGyroSteerBridge();
+	if(gyro_steer && gyro_steer->IsActive())
+	{
+		float gs_left_x = gyro_steer->GetLeftX();
+		// 物理摇杆优先:体感仅在偏移更大时接管(等价 MAX_ABS)
+		if(fabsf(state.left_x) < fabsf(gs_left_x))
+			state.left_x = gs_left_x;
+	}
+#endif
+
 	if(input_block)
 	{
 		// Only unblock input after all buttons were released
@@ -1120,6 +1141,17 @@ void StreamSession::SendFeedbackState()
 #endif
 	chiaki_controller_state_or(&state, &state, &keyboard_state);
 	chiaki_controller_state_or(&state, &state, &touch_state);
+
+#ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
+	auto gyro_steer = ControllerManager::GetInstance()->GetGyroSteerBridge();
+	if(gyro_steer && gyro_steer->IsActive())
+	{
+		float gs_left_x = gyro_steer->GetLeftX();
+		// 物理摇杆优先:体感仅在偏移更大时接管(等价 MAX_ABS)
+		if(fabsf(state.left_x) < fabsf(gs_left_x))
+			state.left_x = gs_left_x;
+	}
+#endif
 
 	if(input_block)
 	{
