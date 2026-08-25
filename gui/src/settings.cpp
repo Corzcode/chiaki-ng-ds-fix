@@ -1163,6 +1163,7 @@ static const QMap<PlaceboUpscaler, QString> placebo_upscaler_values = {
 	{ PlaceboUpscaler::EwaLanczosSharp, "ewa_lanczossharp" },
 	{ PlaceboUpscaler::EwaLanczos4Sharpest, "ewa_lanczos4sharpest" },
 	{ PlaceboUpscaler::FSR, "fsr" },
+	{ PlaceboUpscaler::RAVU, "ravu_lite_r4" },
 	{ PlaceboUpscaler::FSRCNNX8, "fsrcnnx_x2_8_0_4_1" },
 	{ PlaceboUpscaler::FSRCNNX16, "fsrcnnx_x2_16_0_4_1" },
 };

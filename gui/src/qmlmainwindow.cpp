@@ -234,13 +234,14 @@ static constexpr float spatial_upscale_threshold = 1.2f;
 
 static bool uses_custom_upscale_hook(PlaceboUpscaler upscaler)
 {
-    return upscaler == PlaceboUpscaler::FSR || uses_fsrcnnx(upscaler);
+    return upscaler == PlaceboUpscaler::FSR || upscaler == PlaceboUpscaler::RAVU || uses_fsrcnnx(upscaler);
 }
 
 static const struct pl_hook *select_spatial_hook(QmlMainWindow::VideoPreset preset,
                                                  PlaceboUpscaler upscaler,
                                                  float upscale_factor,
                                                  const struct pl_hook *fsr_hook,
+                                                 const struct pl_hook *ravu_hook,
                                                  const struct pl_hook *hook8,
                                                  const struct pl_hook *hook16)
 {
@@ -256,6 +257,8 @@ static const struct pl_hook *select_spatial_hook(QmlMainWindow::VideoPreset pres
         switch (upscaler) {
         case PlaceboUpscaler::FSR:
             return fsr_hook;
+        case PlaceboUpscaler::RAVU:
+            return ravu_hook;
         case PlaceboUpscaler::FSRCNNX8:
             return upscale_factor >= spatial_upscale_threshold ? hook8 : fsr_hook;
         case PlaceboUpscaler::FSRCNNX16:
@@ -443,6 +446,7 @@ QmlMainWindow::~QmlMainWindow()
     delete qt_gl_context;
     pl_options_free(&renderparams_opts);
     pl_mpv_user_shader_destroy(&fsr_hook);
+    pl_mpv_user_shader_destroy(&ravu_hook);
     pl_mpv_user_shader_destroy(&fsrcnnx_hook_8);
     pl_mpv_user_shader_destroy(&fsrcnnx_hook_16);
     pl_log_destroy(&placebo_log);
@@ -1959,6 +1963,7 @@ renderer_backend_ready:
     pl_options_reset(this->renderparams_opts, &pl_render_high_quality_params);
     this->renderparams_changed = true;
     this->fsr_hook = load_mpv_hook(placeboGpu(), QStringLiteral(":/shaders/FSR.glsl"));
+    this->ravu_hook = load_mpv_hook(placeboGpu(), QStringLiteral(":/shaders/ravu-lite-r4.hook"));
     this->fsrcnnx_hook_8 = load_mpv_hook(placeboGpu(), QStringLiteral(":/shaders/FSRCNNX_x2_8-0-4-1.glsl"));
     this->fsrcnnx_hook_16 = load_mpv_hook(placeboGpu(), QStringLiteral(":/shaders/FSRCNNX_x2_16-0-4-1.glsl"));
 
@@ -2817,7 +2822,7 @@ void QmlMainWindow::render()
         if (src_width > 0.0f && src_height > 0.0f) {
             const float upscale_factor = qMin(dst_width / src_width, dst_height / src_height);
             fsrcnnx_hook = select_spatial_hook(video_preset, configured_upscaler, upscale_factor,
-                                               fsr_hook, fsrcnnx_hook_8, fsrcnnx_hook_16);
+                                               fsr_hook, ravu_hook, fsrcnnx_hook_8, fsrcnnx_hook_16);
         }
     }
     const struct pl_hook *active_hooks[] = {fsrcnnx_hook};
@@ -2842,6 +2847,9 @@ void QmlMainWindow::render()
                 qCDebug(chiakiGui) << "Activating custom upscaler: FSR";
             } else {
                 switch (configured_upscaler) {
+                case PlaceboUpscaler::RAVU:
+                qCDebug(chiakiGui) << "Activating custom upscaler: RAVU Lite r4";
+                break;
                 case PlaceboUpscaler::FSRCNNX8:
                 qCDebug(chiakiGui) << "Activating custom upscaler: FSRCNNX x2 8-0-4-1";
                 break;

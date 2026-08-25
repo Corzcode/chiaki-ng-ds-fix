@@ -29,5 +29,6 @@
     <file alias="FSR.glsl">shaders/FSR.glsl</file>
     <file alias="FSRCNNX_x2_8-0-4-1.glsl">shaders/FSRCNNX_x2_8-0-4-1.glsl</file>
     <file alias="FSRCNNX_x2_16-0-4-1.glsl">shaders/FSRCNNX_x2_16-0-4-1.glsl</file>
+    <file alias="ravu-lite-r4.hook">shaders/ravu-lite-r4.hook</file>
   </qresource>
 </RCC>

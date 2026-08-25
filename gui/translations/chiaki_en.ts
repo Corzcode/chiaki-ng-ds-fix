@@ -1156,6 +1156,10 @@ or update an existing non-Steam game with the official artwork and controller la
 			<translation>FSR</translation>
 		</message>
 		<message>
+			<source>RAVU Lite r4</source>
+			<translation>RAVU Lite r4</translation>
+		</message>
+		<message>
 			<source>FSRCNNX x2 16-0-4-1</source>
 			<translation>FSRCNNX x2 16-0-4-1</translation>
 		</message>

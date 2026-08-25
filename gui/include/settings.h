@@ -104,6 +104,7 @@ enum class PlaceboUpscaler {
 	EwaLanczosSharp,
 	EwaLanczos4Sharpest,
 	FSR,
+	RAVU,
 	FSRCNNX8,
 	FSRCNNX16
 };
