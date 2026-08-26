@@ -127,7 +127,7 @@ Window {
                 stepSize: 1
                 value: Chiaki.settings.audioVolume
                 onMoved: Chiaki.settings.audioVolume = value
-                KeyNavigation.left: closeButton
+                KeyNavigation.left: gyroSteeringButton
                 KeyNavigation.right: muteButton
                 Keys.onEscapePressed: streamMenuWindow.closeRequested()
 
@@ -309,8 +309,22 @@ Window {
                     Chiaki.settings.videoPreset = ChiakiWindow.VideoPreset.Custom
                 }
                 KeyNavigation.left: highQualityAdvancedSpatialButton
-                KeyNavigation.right: displaySettingsButton
+                KeyNavigation.right: placeboSettingsButton.visible ? placeboSettingsButton : displaySettingsButton
                 Keys.onReturnPressed: toggled()
+                Keys.onEscapePressed: streamMenuWindow.closeRequested()
+            }
+
+            ToolButton {
+                id: placeboSettingsButton
+                text: qsTr("Placebo")
+                icon.source: "qrc:/icons/settings-20px.svg"
+                padding: 10
+                checkable: false
+                visible: Chiaki.window.videoPreset == ChiakiWindow.VideoPreset.Custom
+                onClicked: streamMenuWindow.placeboSettingsRequested()
+                KeyNavigation.left: customButton
+                KeyNavigation.right: displaySettingsButton
+                Keys.onReturnPressed: clicked()
                 Keys.onEscapePressed: streamMenuWindow.closeRequested()
             }
 
@@ -321,7 +335,7 @@ Window {
                 checkable: false
                 icon.source: "qrc:/icons/settings-20px.svg"
                 onClicked: streamMenuWindow.displaySettingsRequested()
-                KeyNavigation.left: customButton
+                KeyNavigation.left: placeboSettingsButton.visible ? placeboSettingsButton : customButton
                 KeyNavigation.right: statsButton
                 Keys.onReturnPressed: clicked()
                 Keys.onEscapePressed: streamMenuWindow.closeRequested()
@@ -340,21 +354,21 @@ Window {
                 checkable: false
                 onClicked: Chiaki.settings.streamStatsMode = (Chiaki.settings.streamStatsMode + 1) % 3
                 KeyNavigation.left: displaySettingsButton
-                KeyNavigation.right: placeboSettingsButton.visible ? placeboSettingsButton : statsButton
+                KeyNavigation.right: gyroSteeringButton
                 Keys.onReturnPressed: clicked()
                 Keys.onEscapePressed: streamMenuWindow.closeRequested()
             }
 
             ToolButton {
-                id: placeboSettingsButton
-                text: qsTr("Placebo")
-                icon.source: "qrc:/icons/settings-20px.svg"
+                id: gyroSteeringButton
+                Layout.rightMargin: 40
+                text: qsTr("Gyro Steer")
                 padding: 10
-                checkable: false
-                visible: Chiaki.window.videoPreset == ChiakiWindow.VideoPreset.Custom
-                onClicked: streamMenuWindow.placeboSettingsRequested()
+                checkable: true
+                checked: Chiaki.settings.gyroSteering
+                onToggled: Chiaki.settings.gyroSteering = checked
                 KeyNavigation.left: statsButton
-                Keys.onReturnPressed: clicked()
+                Keys.onReturnPressed: toggled()
                 Keys.onEscapePressed: streamMenuWindow.closeRequested()
             }
         }

@@ -2560,6 +2560,10 @@ This enables:
 			<translation>No Black Bars</translation>
 		</message>
 		<message>
+			<source>Gyro Steer</source>
+			<translation>Gyro Steer</translation>
+		</message>
+		<message>
 			<source>Placebo</source>
 			<translation>Placebo</translation>
 		</message>
@@ -2703,6 +2707,10 @@ This enables:
 		<message>
 			<source>OK</source>
 			<translation>OK</translation>
+		</message>
+		<message>
+			<source>Gyro Steer</source>
+			<translation>Gyro Steer</translation>
 		</message>
 		<message>
 			<source>Placebo</source>
@@ -3027,12 +3035,72 @@ To re-enable change Audio/Video to Audio and Video Enabled in the General tab of
 			<translation>°</translation>
 		</message>
 		<message>
-			<source>(3°)</source>
-			<translation>(3°)</translation>
+			<source>(1°)</source>
+			<translation>(1°)</translation>
 		</message>
 		<message>
 			<source>(30°)</source>
 			<translation>(30°)</translation>
+		</message>
+		<message>
+			<source>(5°/s)</source>
+			<translation>(5°/s)</translation>
+		</message>
+		<message>
+			<source>(90°/s)</source>
+			<translation>(90°/s)</translation>
+		</message>
+		<message>
+			<source>(3°/s)</source>
+			<translation>(3°/s)</translation>
+		</message>
+		<message>
+			<source>(4.2)</source>
+			<translation>(4.2)</translation>
+		</message>
+		<message>
+			<source>(0.35s)</source>
+			<translation>(0.35s)</translation>
+		</message>
+		<message>
+			<source>(1.5)</source>
+			<translation>(1.5)</translation>
+		</message>
+		<message>
+			<source>Idle Recenter Delay:</source>
+			<translation>Idle Recenter Delay:</translation>
+		</message>
+		<message>
+			<source>Response Curve:</source>
+			<translation>Response Curve:</translation>
+		</message>
+		<message>
+			<source>(Tilt / Wheel)</source>
+			<translation>(Tilt / Wheel)</translation>
+		</message>
+		<message>
+			<source>Angle (Absolute)</source>
+			<translation>Angle (Absolute)</translation>
+		</message>
+		<message>
+			<source>Mapping Mode:</source>
+			<translation>Mapping Mode:</translation>
+		</message>
+		<message>
+			<source>Rate + Spring (Racing)</source>
+			<translation>Rate + Spring (Racing)</translation>
+		</message>
+		<message>
+			<source>Rate Deadzone:</source>
+			<translation>Rate Deadzone:</translation>
+		</message>
+		<message>
+			<source>Spring Return:</source>
+			<translation>Spring Return:</translation>
+		</message>
+		<message>
+			<source>Turn Rate (Full Deflection):</source>
+			<translation>Turn Rate (Full Deflection):</translation>
 		</message>
 		<message>
 			<source>(Recenter)</source>

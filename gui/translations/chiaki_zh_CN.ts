@@ -2560,6 +2560,10 @@ This enables:
 			<translation>无黑边</translation>
 		</message>
 		<message>
+			<source>Gyro Steer</source>
+			<translation>体感转向</translation>
+		</message>
+		<message>
 			<source>Placebo</source>
 			<translation>Placebo</translation>
 		</message>
@@ -2703,6 +2707,10 @@ This enables:
 		<message>
 			<source>OK</source>
 			<translation>确定</translation>
+		</message>
+		<message>
+			<source>Gyro Steer</source>
+			<translation>体感转向</translation>
 		</message>
 		<message>
 			<source>Placebo</source>
@@ -3027,12 +3035,72 @@ To re-enable change Audio/Video to Audio and Video Enabled in the General tab of
 			<translation>°</translation>
 		</message>
 		<message>
-			<source>(3°)</source>
-			<translation>(3°)</translation>
+			<source>(1°)</source>
+			<translation>(1°)</translation>
 		</message>
 		<message>
 			<source>(30°)</source>
 			<translation>(30°)</translation>
+		</message>
+		<message>
+			<source>(5°/s)</source>
+			<translation>(5°/s)</translation>
+		</message>
+		<message>
+			<source>(90°/s)</source>
+			<translation>(90°/s)</translation>
+		</message>
+		<message>
+			<source>(3°/s)</source>
+			<translation>(3°/s)</translation>
+		</message>
+		<message>
+			<source>(4.2)</source>
+			<translation>(4.2)</translation>
+		</message>
+		<message>
+			<source>(0.35s)</source>
+			<translation>(0.35s)</translation>
+		</message>
+		<message>
+			<source>(1.5)</source>
+			<translation>(1.5)</translation>
+		</message>
+		<message>
+			<source>Idle Recenter Delay:</source>
+			<translation>静止回中延迟:</translation>
+		</message>
+		<message>
+			<source>Response Curve:</source>
+			<translation>响应曲线:</translation>
+		</message>
+		<message>
+			<source>(Tilt / Wheel)</source>
+			<translation>(倾斜 / 方向盘)</translation>
+		</message>
+		<message>
+			<source>Angle (Absolute)</source>
+			<translation>绝对角度</translation>
+		</message>
+		<message>
+			<source>Mapping Mode:</source>
+			<translation>映射模式:</translation>
+		</message>
+		<message>
+			<source>Rate + Spring (Racing)</source>
+			<translation>角速度+弹簧回中(赛车)</translation>
+		</message>
+		<message>
+			<source>Rate Deadzone:</source>
+			<translation>速率死区:</translation>
+		</message>
+		<message>
+			<source>Spring Return:</source>
+			<translation>回中强度:</translation>
+		</message>
+		<message>
+			<source>Turn Rate (Full Deflection):</source>
+			<translation>转向速率(满偏):</translation>
 		</message>
 		<message>
 			<source>(Recenter)</source>

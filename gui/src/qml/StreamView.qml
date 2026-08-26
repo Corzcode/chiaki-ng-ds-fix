@@ -800,8 +800,25 @@ Item {
                     Chiaki.settings.videoPreset = ChiakiWindow.VideoPreset.Custom
                 }
                 KeyNavigation.left: highQualityAdvancedSpatialButton
-                KeyNavigation.right: displaySettingsButton
+                KeyNavigation.right: placeboSettingsButton.visible ? placeboSettingsButton : displaySettingsButton
                 Keys.onReturnPressed: toggled()
+                Keys.onEscapePressed: menuController.close()
+            }
+
+            ToolButton {
+                id: placeboSettingsButton
+                text: qsTr("Placebo")
+                icon.source: "qrc:/icons/settings-20px.svg";
+                padding: 10
+                checkable: false
+                onClicked: root.openPlaceboSettings()
+                KeyNavigation.left: customButton
+                KeyNavigation.right: displaySettingsButton
+                visible: Chiaki.window.videoPreset == ChiakiWindow.VideoPreset.Custom
+                Keys.onReturnPressed: {
+                    menuController.close();
+                    clicked();
+                }
                 Keys.onEscapePressed: menuController.close()
             }
 
@@ -812,7 +829,7 @@ Item {
                 checkable: false
                 icon.source: "qrc:/icons/settings-20px.svg";
                 onClicked: root.openDisplaySettings()
-                KeyNavigation.left: customButton
+                KeyNavigation.left: placeboSettingsButton.visible ? placeboSettingsButton : customButton
                 KeyNavigation.right: statsButton
                 Keys.onReturnPressed: {
                     menuController.close();
@@ -834,24 +851,21 @@ Item {
                 checkable: false
                 onClicked: Chiaki.settings.streamStatsMode = (Chiaki.settings.streamStatsMode + 1) % 3
                 KeyNavigation.left: displaySettingsButton
-                KeyNavigation.right: placeboSettingsButton.visible ? placeboSettingsButton : statsButton
+                KeyNavigation.right: gyroSteeringButton
                 Keys.onReturnPressed: clicked()
                 Keys.onEscapePressed: menuController.close()
             }
 
             ToolButton {
-                id: placeboSettingsButton
-                text: qsTr("Placebo")
-                icon.source: "qrc:/icons/settings-20px.svg";
+                id: gyroSteeringButton
+                Layout.rightMargin: 40
+                text: qsTr("Gyro Steer")
                 padding: 10
-                checkable: false
-                onClicked: root.openPlaceboSettings()
+                checkable: true
+                checked: Chiaki.settings.gyroSteering
+                onToggled: Chiaki.settings.gyroSteering = checked
                 KeyNavigation.left: statsButton
-                visible: Chiaki.window.videoPreset == ChiakiWindow.VideoPreset.Custom
-                Keys.onReturnPressed: {
-                    menuController.close();
-                    clicked();
-                }
+                Keys.onReturnPressed: toggled()
                 Keys.onEscapePressed: menuController.close()
             }
             }

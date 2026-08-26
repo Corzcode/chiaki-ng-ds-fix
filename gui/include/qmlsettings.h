@@ -165,6 +165,12 @@ class QmlSettings : public QObject
     Q_PROPERTY(bool gyroSteering READ gyroSteering WRITE setGyroSteering NOTIFY gyroSteeringChanged)
     Q_PROPERTY(qreal gyroSteeringSensitivity READ gyroSteeringSensitivity WRITE setGyroSteeringSensitivity NOTIFY gyroSteeringChanged)
     Q_PROPERTY(qreal gyroSteeringDeadzone READ gyroSteeringDeadzone WRITE setGyroSteeringDeadzone NOTIFY gyroSteeringChanged)
+    Q_PROPERTY(int gyroSteeringMode READ gyroSteeringMode WRITE setGyroSteeringMode NOTIFY gyroSteeringChanged)
+    Q_PROPERTY(qreal gyroSteeringRateMax READ gyroSteeringRateMax WRITE setGyroSteeringRateMax NOTIFY gyroSteeringChanged)
+    Q_PROPERTY(qreal gyroSteeringSpring READ gyroSteeringSpring WRITE setGyroSteeringSpring NOTIFY gyroSteeringChanged)
+    Q_PROPERTY(qreal gyroSteeringRateDeadzone READ gyroSteeringRateDeadzone WRITE setGyroSteeringRateDeadzone NOTIFY gyroSteeringChanged)
+    Q_PROPERTY(qreal gyroSteeringIdleDelay READ gyroSteeringIdleDelay WRITE setGyroSteeringIdleDelay NOTIFY gyroSteeringChanged)
+    Q_PROPERTY(qreal gyroSteeringCurve READ gyroSteeringCurve WRITE setGyroSteeringCurve NOTIFY gyroSteeringChanged)
     Q_PROPERTY(bool gyroSteeringInvert READ gyroSteeringInvert WRITE setGyroSteeringInvert NOTIFY gyroSteeringChanged)
 
 public:
@@ -545,6 +551,18 @@ public:
     void setGyroSteeringSensitivity(qreal value);
     qreal gyroSteeringDeadzone() const;
     void setGyroSteeringDeadzone(qreal value);
+    int gyroSteeringMode() const;
+    void setGyroSteeringMode(int value);
+    qreal gyroSteeringRateMax() const;
+    void setGyroSteeringRateMax(qreal value);
+    qreal gyroSteeringSpring() const;
+    void setGyroSteeringSpring(qreal value);
+    qreal gyroSteeringRateDeadzone() const;
+    void setGyroSteeringRateDeadzone(qreal value);
+    qreal gyroSteeringIdleDelay() const;
+    void setGyroSteeringIdleDelay(qreal value);
+    qreal gyroSteeringCurve() const;
+    void setGyroSteeringCurve(qreal value);
     bool gyroSteeringInvert() const;
     void setGyroSteeringInvert(bool invert);
 

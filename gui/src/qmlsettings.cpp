@@ -1920,6 +1920,78 @@ void QmlSettings::setGyroSteeringDeadzone(qreal value)
 	applyGyroSteerConfig();
 }
 
+int QmlSettings::gyroSteeringMode() const
+{
+	return settings->GetGyroSteeringMode();
+}
+
+void QmlSettings::setGyroSteeringMode(int value)
+{
+	settings->SetGyroSteeringMode(value);
+	emit gyroSteeringChanged();
+	applyGyroSteerConfig();
+}
+
+qreal QmlSettings::gyroSteeringRateMax() const
+{
+	return settings->GetGyroSteeringRateMax();
+}
+
+void QmlSettings::setGyroSteeringRateMax(qreal value)
+{
+	settings->SetGyroSteeringRateMax((float)value);
+	emit gyroSteeringChanged();
+	applyGyroSteerConfig();
+}
+
+qreal QmlSettings::gyroSteeringSpring() const
+{
+	return settings->GetGyroSteeringSpring();
+}
+
+void QmlSettings::setGyroSteeringSpring(qreal value)
+{
+	settings->SetGyroSteeringSpring((float)value);
+	emit gyroSteeringChanged();
+	applyGyroSteerConfig();
+}
+
+qreal QmlSettings::gyroSteeringRateDeadzone() const
+{
+	return settings->GetGyroSteeringRateDeadzone();
+}
+
+void QmlSettings::setGyroSteeringRateDeadzone(qreal value)
+{
+	settings->SetGyroSteeringRateDeadzone((float)value);
+	emit gyroSteeringChanged();
+	applyGyroSteerConfig();
+}
+
+qreal QmlSettings::gyroSteeringIdleDelay() const
+{
+	return settings->GetGyroSteeringIdleDelay();
+}
+
+void QmlSettings::setGyroSteeringIdleDelay(qreal value)
+{
+	settings->SetGyroSteeringIdleDelay((float)value);
+	emit gyroSteeringChanged();
+	applyGyroSteerConfig();
+}
+
+qreal QmlSettings::gyroSteeringCurve() const
+{
+	return settings->GetGyroSteeringCurve();
+}
+
+void QmlSettings::setGyroSteeringCurve(qreal value)
+{
+	settings->SetGyroSteeringCurve((float)value);
+	emit gyroSteeringChanged();
+	applyGyroSteerConfig();
+}
+
 bool QmlSettings::gyroSteeringInvert() const
 {
 	return settings->GetGyroSteeringInvert();

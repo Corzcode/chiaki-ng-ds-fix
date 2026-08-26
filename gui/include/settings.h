@@ -320,8 +320,21 @@ class Settings : public QObject
 		float GetGyroSteeringSensitivity() const   { return settings.value("settings/gyro_steering_sensitivity", 30.0).toFloat(); }
 		void SetGyroSteeringSensitivity(float v)   { settings.setValue("settings/gyro_steering_sensitivity", v); }
 
-		float GetGyroSteeringDeadzone() const      { return settings.value("settings/gyro_steering_deadzone", 3.0).toFloat(); }
+		float GetGyroSteeringDeadzone() const      { return settings.value("settings/gyro_steering_deadzone", 1.0).toFloat(); }
 		void SetGyroSteeringDeadzone(float v)      { settings.setValue("settings/gyro_steering_deadzone", v); }
+
+		int GetGyroSteeringMode() const            { return settings.value("settings/gyro_steering_mode", 1).toInt(); }
+		void SetGyroSteeringMode(int v)            { settings.setValue("settings/gyro_steering_mode", v); }
+		float GetGyroSteeringRateMax() const       { return settings.value("settings/gyro_steering_rate_max", 90.0).toFloat(); }
+		void SetGyroSteeringRateMax(float v)       { settings.setValue("settings/gyro_steering_rate_max", v); }
+		float GetGyroSteeringSpring() const        { return settings.value("settings/gyro_steering_spring", 4.2).toFloat(); }
+		void SetGyroSteeringSpring(float v)        { settings.setValue("settings/gyro_steering_spring", v); }
+		float GetGyroSteeringRateDeadzone() const  { return settings.value("settings/gyro_steering_rate_deadzone", 3.0).toFloat(); }
+		void SetGyroSteeringRateDeadzone(float v)  { settings.setValue("settings/gyro_steering_rate_deadzone", v); }
+		float GetGyroSteeringIdleDelay() const     { return settings.value("settings/gyro_steering_idle_delay", 0.35).toFloat(); }
+		void SetGyroSteeringIdleDelay(float v)     { settings.setValue("settings/gyro_steering_idle_delay", v); }
+		float GetGyroSteeringCurve() const         { return settings.value("settings/gyro_steering_curve", 1.5).toFloat(); }
+		void SetGyroSteeringCurve(float v)         { settings.setValue("settings/gyro_steering_curve", v); }
 
 		bool GetGyroSteeringInvert() const         { return settings.value("settings/gyro_steering_invert", false).toBool(); }
 		void SetGyroSteeringInvert(bool invert)    { settings.setValue("settings/gyro_steering_invert", invert); }

@@ -32,6 +32,7 @@ class GyroSteerBridge : public QObject
 	private:
 		ChiakiGyroSteer steer;
 		QElapsedTimer elapsed;
+		qint64 last_ns = -1;   // 上次传感器时间戳(纳秒),用于精确 dt
 		ChiakiOrientation last_orient{};
 		bool have_orient = false;
 		bool rest_pending = false;
