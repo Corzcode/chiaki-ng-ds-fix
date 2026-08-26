@@ -105,12 +105,15 @@ qrc:/GyroSteerSettingsDialog.qml:15:5: Cannot assign object of type "Timer"
 ### 3. Local logs & crash dumps
 
 - **Runtime logs**: `%APPDATA%\Chiaki\Chiaki\log`.
-- **Crash dumps**: `gui/src/main.cpp` `InstallCrashHandlers()` writes `MiniDumpNormal` (use `Normal`, not `WithFullMemory`) to `%LOCALAPPDATA%\CrashDumps\chiaki_crash_<tick>.dmp`.
+- **Crash dumps**: `gui/src/main.cpp` `InstallCrashHandlers()` writes `MiniDumpNormal` (use `Normal`, not `WithFullMemory`) to `%LOCALAPPDATA%\CrashDumps\chiaki_crash_<tick>.dmp`. WER dumps (`chiaki.exe.<pid>.dmp`) appear there too when PageHeap/gflags is on.
 - Only parse the dump for a genuine protocol/lower-layer crash (QML log was clean):
-  - MSYS2 **system libplacebo is shipped WITH DWARF** — `addr2line -e libplacebo-*.dll -f -C <VA>` resolves offset → function+source line.
-  - chiaki.exe (Release) also carries `.debug_info`; `addr2line` with full VA (`0x140000000 + RVA`) gives `settings.cpp`, `mocs_compilation.cpp`, etc.
-  - MSYS2 gdb/MinGW **cannot read a Windows minidump** (`"not a core dump"`); use the python minidump parser (read streams 3/4/5/6 for exception address + module map) or skip — the QML log of step 1 is the better tool.
-  - **Caution:** VA/RVA-mixed stack-scan "frames" (pointers into `settings.cpp`/`custom_mpv.c`, kernel noise) are often **data, not real frames**; validate against PE `.pdata`/`.rdata`. Only the exact `RIP` from the exception stream is trustworthy.
+  - **Minidump parsing (reusable, no rewrites):** two scripts live in `scripts/`:
+    - `minidump_lib_parse.py` — uses the **pip `minidump` lib** (already installed in `D:\www\env\Python312`). Run: `D:\www\env\Python312\python.exe scripts\minidump_lib_parse.py <dump.dmp>`. Prints exception code/address, thread count, full module map, and resolves the faulting address to module+RVA. Recommended default.
+    - `minidump_probe.py` — dependency-free fallback (any Python), also dumps faulting-thread RIP/RSP and a stack scan. Run: `python scripts\minidump_probe.py <dump.dmp>`; output goes to `<dump>.probe.txt` (avoids PowerShell encoding mangling).
+    - **Pitfall:** pip installs fail with "Missing dependencies for SOCKS support" because the env has `all_proxy=socks5://127.0.0.1:1080` and PySocks isn't installed. Clear `all_proxy/http_proxy/https_proxy` before pip, or just reuse `D:\www\env\Python312` where `minidump` already exists. `py -0p` lists stale `D:\Python312/39/37` entries that no longer exist — the only real Python options are `D:\www\env\Python312` and the MSYS2 mingw64 one.
+  - **Symbol resolution:** MSYS2 **system libplacebo is shipped WITH DWARF** — `addr2line -e libplacebo-*.dll -f -C <full VA>` resolves to function+source. chiaki.exe (Release) also carries `.debug_info`; `addr2line` with full VA (`0x140000000 + RVA`) gives `settings.cpp`, `mocs_compilation.cpp`, etc. **Prefer the full VA / `-j .text` section offset**, and double-check with `objdump -d -M intel` around the fault address — a bare RVA to `addr2line` can misattribute the symbol (observed: RVA `0x5b1c0` in libplacebo-365.dll was really `pl_tex_destroy`'s `call [rcx+0x158]`, not the nearby `pl_str_print_int64` that `-j .text` reported).
+  - MSYS2 gdb/MinGW **cannot read a Windows minidump** (`"not a core dump"`); the scripts above replace the old hand-rolled stream parser — or skip and use the QML log of step 1.
+  - **Caution:** VA/RVA-mixed stack-scan "frames" (pointers into `settings.cpp`/`custom_mpv.c`, kernel noise) are often **data, not real frames**; validate against PE `.pdata`/`.rdata`. Only the exact `RIP` from the exception stream is trustworthy. Under PageHeap, a fault like `read 0x185...` on a heap address usually means **UAF on an already-freed object** (e.g. shader hook destroyed after the GPU that owns it).
 
 ### 4. Bisect commits instead of re-fitting the layer
 
