@@ -1915,8 +1915,8 @@ Reason: %1</source>
 			<translation>DS5 陀螺仪修复：</translation>
 		</message>
 		<message>
-			<source>Enable Gyro Steering (tilt to steer)</source>
-			<translation>启用体感转向(倾斜方向盘)</translation>
+			<source>Map gyro steering to the left stick</source>
+			<translation>陀螺仪映射到左摇杆</translation>
 		</message>
 		<message>
 			<source>Gyro Steering:</source>

@@ -1915,8 +1915,8 @@ Reason: %1</translation>
 			<translation>DS5 Gyro Fix:</translation>
 		</message>
 		<message>
-			<source>Enable Gyro Steering (tilt to steer)</source>
-			<translation>Enable Gyro Steering (tilt to steer)</translation>
+			<source>Map gyro steering to the left stick</source>
+			<translation>Map gyro steering to the left stick</translation>
 		</message>
 		<message>
 			<source>Gyro Steering:</source>

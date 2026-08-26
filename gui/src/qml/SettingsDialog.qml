@@ -2875,7 +2875,7 @@ DialogView {
                                 spacing: 10
                                 C.CheckBox {
                                     id: gyroSteeringCheck
-                                    text: qsTr("Enable Gyro Steering (tilt to steer)")
+                                    text: qsTr("Map gyro steering to the left stick")
                                     checked: Chiaki.settings.gyroSteering
                                     onToggled: Chiaki.settings.gyroSteering = checked
                                     KeyNavigation.priority: KeyNavigation.BeforeItem
