@@ -93,6 +93,29 @@ static void placebo_log_cb(void *user, pl_log_level level, const char *msg)
     }
 }
 
+static QString graphicsApiName(QSGRendererInterface::GraphicsApi api)
+{
+    switch (api) {
+    case QSGRendererInterface::Unknown:
+        return QStringLiteral("unknown");
+    case QSGRendererInterface::Software:
+        return QStringLiteral("software");
+    case QSGRendererInterface::OpenVG:
+        return QStringLiteral("openvg");
+    case QSGRendererInterface::OpenGLRhi:
+        return QStringLiteral("opengl");
+    case QSGRendererInterface::Direct3D11Rhi:
+        return QStringLiteral("d3d11");
+    case QSGRendererInterface::VulkanRhi:
+        return QStringLiteral("vulkan");
+    case QSGRendererInterface::MetalRhi:
+        return QStringLiteral("metal");
+    case QSGRendererInterface::NullRhi:
+        return QStringLiteral("null");
+    }
+    return QStringLiteral("unknown(%1)").arg(int(api));
+}
+
 static bool map_frame(pl_gpu gpu, pl_tex *tex,
                       const struct pl_source_frame *src,
                       struct pl_frame *out_frame)
@@ -1847,6 +1870,10 @@ renderer_backend_ready:
         quick_window->setGraphicsDevice(QQuickGraphicsDevice::fromOpenGLContext(qt_gl_context));
     }
     quick_window->setColor(QColor(0, 0, 0, 0));
+    connect(quick_window, &QQuickWindow::sceneGraphInitialized, this, [this]() {
+        if (QSGRendererInterface *sg_interface = quick_window->rendererInterface())
+            qCInfo(chiakiGui) << "Qt Quick scene graph graphics API:" << graphicsApiName(sg_interface->graphicsApi());
+    });
     connect(quick_window, &QQuickWindow::focusObjectChanged, this, &QmlMainWindow::focusObjectChanged);
 
     qml_engine = new QQmlEngine(this);

@@ -76,6 +76,29 @@ static void InstallTranslator(QApplication &app, const QString &language)
 		app.installTranslator(&translator);
 }
 
+// The GUI renders Qt Quick into an external image owned by libplacebo
+// (QQuickRenderControl + QQuickRenderTarget), so it only works with the
+// default RHI scene graph adaptation. A leftover QT_QUICK_BACKEND override
+// (e.g. "software", commonly setx'ed while troubleshooting another app)
+// forces the software rasterizer, which cannot draw into that image: the
+// main window then stays black while native popup menus still render.
+// There is no valid chiaki-ng configuration that wants it, so drop it.
+static void GuardIncompatibleSceneGraphEnvVars()
+{
+	if(qEnvironmentVariableIsSet("QT_QUICK_BACKEND"))
+	{
+		QByteArray value = qgetenv("QT_QUICK_BACKEND");
+		qWarning("chiaki-ng: ignoring QT_QUICK_BACKEND=\"%s\" because it is incompatible "
+				"with the custom UI render path; delete the variable to silence this message.",
+				value.constData());
+		qunsetenv("QT_QUICK_BACKEND");
+	}
+	if(qEnvironmentVariableIntValue("QSG_RHI_PREFER_SOFTWARE_RENDERER") != 0)
+		qWarning("chiaki-ng: QSG_RHI_PREFER_SOFTWARE_RENDERER is set; the software rasterizer "
+				"cannot render the UI into the libplacebo surface and the window may appear black. "
+				"Unset it if you hit that symptom.");
+}
+
 int real_main(int argc, char *argv[])
 {
 	qRegisterMetaType<DiscoveryHost>();
@@ -135,6 +158,7 @@ int real_main(int argc, char *argv[])
 #ifdef CHIAKI_HAVE_WEBENGINE
 	QtWebEngineQuick::initialize();
 #endif
+	GuardIncompatibleSceneGraphEnvVars();
 	QApplication app(argc, argv);
 
 #ifdef Q_OS_MACOS
