@@ -142,7 +142,7 @@ class Controller : public QObject
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 		QMap<QPair<Sint64, Sint64>, uint8_t> touch_ids;
 		SDL_GameController *controller;
-		hid_device *dualsense_hid_device;
+		SDL_hid_device *dualsense_hid_device;
 		ChiakiAccelNewZero accel_zero;
 		ChiakiAccelNewZero real_accel;
 		uint32_t last_motion_timestamp;

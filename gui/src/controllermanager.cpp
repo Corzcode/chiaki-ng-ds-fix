@@ -4,6 +4,8 @@
 #include <gyrosteer.h>
 #include <settings.h>
 
+#include <chiaki/log.h>
+
 #include <QCoreApplication>
 #include <QByteArray>
 #include <QTimer>
@@ -435,6 +437,8 @@ Controller::Controller(int device_id, ControllerManager *manager)
 			is_handheld = chiaki_handheld_controller_ids.contains(controller_id);
 			is_dualsense_edge = chiaki_dualsense_edge_controller_ids.contains(controller_id);
 			firmware_version = SDL_GameControllerGetFirmwareVersion(controller);
+			if(is_dualsense || is_dualsense_edge)
+				OpenDualSenseHID();
 			SDL_Joystick *js = SDL_GameControllerGetJoystick(controller);
 			SDL_JoystickGUID guid = SDL_JoystickGetGUID(js);
 			auto guid_controller_id = QPair<uint16_t, uint16_t>(0, 0);
@@ -472,14 +476,33 @@ Controller::~Controller()
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 void Controller::OpenDualSenseHID()
 {
+	if(!is_dualsense && !is_dualsense_edge)
+		return;
+
+	CloseDualSenseHID();
+
+	uint16_t vendor_id = 0x054C;  // Sony
+	uint16_t product_id = is_dualsense_edge ? 0x0DF2 : 0x0CE6;
+
+	dualsense_hid_device = SDL_hid_open(vendor_id, product_id, nullptr);
+	if(!dualsense_hid_device)
+	{
+		CHIAKI_LOGE(NULL, "Failed to open DualSense HID device");
+		return;
+	}
+
+	SDL_hid_set_nonblocking(dualsense_hid_device, 1);
+
+	CHIAKI_LOGI(NULL, "DualSense HID device opened successfully");
 }
 
 void Controller::CloseDualSenseHID()
 {
 	if(dualsense_hid_device)
 	{
-		hid_close(dualsense_hid_device);
+		SDL_hid_close(dualsense_hid_device);
 		dualsense_hid_device = nullptr;
+		CHIAKI_LOGI(NULL, "DualSense HID device closed");
 	}
 }
 
