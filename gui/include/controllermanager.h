@@ -13,6 +13,7 @@
 
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 #include <SDL.h>
+#include <SDL_hidapi.h>
 #include <chiaki/orientation.h>
 #endif
 
