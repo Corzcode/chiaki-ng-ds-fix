@@ -537,8 +537,21 @@ void Controller::UpdateDualSenseBatteryFromHID()
 	uint8_t report[64];
 	int res = SDL_hid_read(dualsense_hid_device, report, sizeof(report));
 
+	CHIAKI_LOGI(NULL, "DualSense HID read: %d bytes", res);
+
 	if(res <= 0)
 		return;
+
+	// Log first 60 bytes of report for debugging
+	CHIAKI_LOGI(NULL, "DualSense HID report (first 60 bytes): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
+		report[0], report[1], report[2], report[3], report[4], report[5], report[6], report[7],
+		report[8], report[9], report[10], report[11], report[12], report[13], report[14], report[15],
+		report[16], report[17], report[18], report[19], report[20], report[21], report[22], report[23],
+		report[24], report[25], report[26], report[27], report[28], report[29], report[30], report[31],
+		report[32], report[33], report[34], report[35], report[36], report[37], report[38], report[39],
+		report[40], report[41], report[42], report[43], report[44], report[45], report[46], report[47],
+		report[48], report[49], report[50], report[51], report[52], report[53], report[54], report[55],
+		report[56], report[57], report[58], report[59]);
 
 	uint8_t status0 = 0;
 	bool found = false;
@@ -551,22 +564,26 @@ void Controller::UpdateDualSenseBatteryFromHID()
 	if(res > 53)
 	{
 		status0 = report[53];
+		CHIAKI_LOGI(NULL, "DualSense HID: using USB offset (53), status0 = 0x%02x", status0);
 		found = true;
 	}
 	else if(res > 52)
 	{
 		status0 = report[52];
+		CHIAKI_LOGI(NULL, "DualSense HID: using BT offset (52), status0 = 0x%02x", status0);
 		found = true;
 	}
 
 	if(!found)
 	{
-		CHIAKI_LOGW(NULL, "Failed to find status0 in DualSense HID report");
+		CHIAKI_LOGW(NULL, "Failed to find status0 in DualSense HID report, res = %d", res);
 		return;
 	}
 
 	uint8_t battery_level = status0 & 0x0F;
 	uint8_t charge_status = (status0 >> 4) & 0x0F;
+
+	CHIAKI_LOGI(NULL, "DualSense battery_level = %d, charge_status = %d", battery_level, charge_status);
 
 	uint8_t new_percent = battery_level * 10;
 	if(battery_level == 10)
@@ -581,12 +598,15 @@ void Controller::UpdateDualSenseBatteryFromHID()
 		default: new_state = ControllerBatteryState::Unknown; break;
 	}
 
+	CHIAKI_LOGI(NULL, "DualSense parsed: percent=%d%%, state=%d (old: percent=%d%%, state=%d)",
+	           new_percent, static_cast<int>(new_state), battery_percent, static_cast<int>(battery_state));
+
 	if(battery_percent != new_percent || battery_state != new_state)
 	{
 		battery_percent = new_percent;
 		battery_state = new_state;
 		emit BatteryChanged();
-		CHIAKI_LOGI(NULL, "DualSense battery updated: %d%%, state: %d",
+		CHIAKI_LOGI(NULL, "DualSense battery UPDATED: %d%%, state: %d",
 		           battery_percent, static_cast<int>(battery_state));
 	}
 }
