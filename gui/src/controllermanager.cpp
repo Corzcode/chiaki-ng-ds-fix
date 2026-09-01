@@ -556,21 +556,22 @@ void Controller::UpdateDualSenseBatteryFromHID()
 	uint8_t status0 = 0;
 	bool found = false;
 
-	// HID report offset heuristic based on connection type:
-	// - Bluetooth reports are typically 53 bytes (offset 52 for status0)
-	// - USB reports are typically 64 bytes (offset 53 for status0)
-	// This assumes the report length indicates the connection type, which
-	// may not be reliable for all DualSense firmware versions or future revisions.
-	if(res > 53)
+	// HID report offset based on connection type (from dualsense-tester):
+	// - USB: 64 bytes, status0 at offset 52 (num=0, 52+0=52)
+	// - Bluetooth: 63 bytes, status0 at offset 53 (num=1, 52+1=53)
+	// Note: BT reports have an extra report ID byte at the start
+	if(res >= 64)
 	{
-		status0 = report[53];
-		CHIAKI_LOGI(NULL, "DualSense HID: using USB offset (53), status0 = 0x%02x", status0);
+		// USB mode: 64 bytes, status0 at offset 52
+		status0 = report[52];
+		CHIAKI_LOGI(NULL, "DualSense HID: USB mode (res=%d), status0 at offset 52 = 0x%02x", res, status0);
 		found = true;
 	}
-	else if(res > 52)
+	else if(res >= 53)
 	{
-		status0 = report[52];
-		CHIAKI_LOGI(NULL, "DualSense HID: using BT offset (52), status0 = 0x%02x", status0);
+		// Bluetooth mode: 63 bytes, status0 at offset 53
+		status0 = report[53];
+		CHIAKI_LOGI(NULL, "DualSense HID: BT mode (res=%d), status0 at offset 53 = 0x%02x", res, status0);
 		found = true;
 	}
 
