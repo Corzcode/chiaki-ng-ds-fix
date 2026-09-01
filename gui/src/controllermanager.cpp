@@ -508,6 +508,59 @@ void Controller::CloseDualSenseHID()
 
 void Controller::UpdateDualSenseBatteryFromHID()
 {
+	if(!dualsense_hid_device)
+		return;
+
+	uint8_t report[64];
+	int res = SDL_hid_read(dualsense_hid_device, report, sizeof(report));
+
+	if(res <= 0)
+		return;
+
+	uint8_t status0 = 0;
+	bool found = false;
+
+	if(res > 53)
+	{
+		status0 = report[53];
+		found = true;
+	}
+	else if(res > 52)
+	{
+		status0 = report[52];
+		found = true;
+	}
+
+	if(!found)
+	{
+		CHIAKI_LOGW(NULL, "Failed to find status0 in DualSense HID report");
+		return;
+	}
+
+	uint8_t battery_level = status0 & 0x0F;
+	uint8_t charge_status = (status0 >> 4) & 0x0F;
+
+	uint8_t new_percent = battery_level * 10;
+	if(battery_level == 10)
+		new_percent = 100;
+
+	ControllerBatteryState new_state;
+	switch(charge_status)
+	{
+		case 0: new_state = ControllerBatteryState::Discharging; break;
+		case 1: new_state = ControllerBatteryState::Charging; break;
+		case 2: new_state = ControllerBatteryState::Full; break;
+		default: new_state = ControllerBatteryState::Unknown; break;
+	}
+
+	if(battery_percent != new_percent || battery_state != new_state)
+	{
+		battery_percent = new_percent;
+		battery_state = new_state;
+		emit BatteryChanged();
+		CHIAKI_LOGI(NULL, "DualSense battery updated: %d%%, state: %d",
+		           battery_percent, static_cast<int>(battery_state));
+	}
 }
 #endif
 
