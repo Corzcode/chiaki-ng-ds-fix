@@ -414,6 +414,7 @@ Controller::Controller(int device_id, ControllerManager *manager)
 
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 	controller = nullptr;
+	dualsense_hid_device = nullptr;
 	for(int i=0; i<SDL_NumJoysticks(); i++)
 	{
 		if(SDL_JoystickGetDeviceInstanceID(i) == device_id)
@@ -456,6 +457,7 @@ Controller::~Controller()
 {
 	Q_ASSERT(ref == 0);
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
+	CloseDualSenseHID();
 	if(controller && SDL_WasInit(SDL_INIT_GAMECONTROLLER)!=0)
 	{
 		// Clear trigger effects, SDL doesn't do it automatically
@@ -466,6 +468,25 @@ Controller::~Controller()
 	}
 #endif
 }
+
+#ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
+void Controller::OpenDualSenseHID()
+{
+}
+
+void Controller::CloseDualSenseHID()
+{
+	if(dualsense_hid_device)
+	{
+		hid_close(dualsense_hid_device);
+		dualsense_hid_device = nullptr;
+	}
+}
+
+void Controller::UpdateDualSenseBatteryFromHID()
+{
+}
+#endif
 
 void Controller::StartUpdatingMapping()
 {

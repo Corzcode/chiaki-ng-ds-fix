@@ -105,6 +105,9 @@ class Controller : public QObject
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 		void UpdateState(SDL_Event event);
 		void SetDualSenseRumble(uint8_t left, uint8_t right);
+		void OpenDualSenseHID();
+		void CloseDualSenseHID();
+		void UpdateDualSenseBatteryFromHID();
 		bool HandleButtonEvent(SDL_ControllerButtonEvent event);
 		bool HandleAxisEvent(SDL_ControllerAxisEvent event);
 #if SDL_VERSION_ATLEAST(2, 0, 14)
@@ -139,6 +142,7 @@ class Controller : public QObject
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 		QMap<QPair<Sint64, Sint64>, uint8_t> touch_ids;
 		SDL_GameController *controller;
+		hid_device *dualsense_hid_device;
 		ChiakiAccelNewZero accel_zero;
 		ChiakiAccelNewZero real_accel;
 		uint32_t last_motion_timestamp;
