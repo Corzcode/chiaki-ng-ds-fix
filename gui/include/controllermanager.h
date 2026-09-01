@@ -52,6 +52,7 @@ class ControllerManager : public QObject
 		bool moved;
 		uint8_t dualsense_intensity;
 		bool ds5_gyro_fix_enabled;
+		QTimer *dualsense_battery_timer;
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 		GyroSteerBridge *gyro_steer_bridge;
 #endif
@@ -62,6 +63,7 @@ class ControllerManager : public QObject
 	private slots:
 		void UpdateAvailableControllers();
 		void HandleEvents();
+		void UpdateDualSenseBattery();
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 		void ControllerEvent(SDL_Event evt);
 #endif

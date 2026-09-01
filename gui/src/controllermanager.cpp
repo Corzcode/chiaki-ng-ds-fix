@@ -180,10 +180,16 @@ ControllerManager::ControllerManager(QObject *parent)
 #endif
 
 	UpdateAvailableControllers();
+
+	dualsense_battery_timer = new QTimer(this);
+	connect(dualsense_battery_timer, &QTimer::timeout,
+	        this, &ControllerManager::UpdateDualSenseBattery);
+	dualsense_battery_timer->start(5000);
 }
 
 ControllerManager::~ControllerManager()
 {
+	dualsense_battery_timer->stop();
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 	delete gyro_steer_bridge;
 	gyro_steer_bridge = nullptr;
@@ -400,6 +406,20 @@ Controller *ControllerManager::OpenController(int device_id)
 void ControllerManager::ControllerClosed(Controller *controller)
 {
 	open_controllers.remove(controller->GetDeviceID());
+}
+
+void ControllerManager::UpdateDualSenseBattery()
+{
+#ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
+	for(auto it = open_controllers.begin(); it != open_controllers.end(); ++it)
+	{
+		Controller *controller = it.value();
+		if(controller && (controller->IsDualSense() || controller->IsDualSenseEdge()))
+		{
+			controller->UpdateDualSenseBatteryFromHID();
+		}
+	}
+#endif
 }
 
 Controller::Controller(int device_id, ControllerManager *manager)
