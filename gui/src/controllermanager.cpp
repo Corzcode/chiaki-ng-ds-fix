@@ -504,6 +504,9 @@ void Controller::OpenDualSenseHID()
 	uint16_t vendor_id = 0x054C;  // Sony
 	uint16_t product_id = is_dualsense_edge ? 0x0DF2 : 0x0CE6;
 
+	// Note: SDL_hid_open() relies on SDL's automatic HID initialization.
+	// SDL_Init(SDL_INIT_GAMECONTROLLER) in ControllerManager's constructor
+	// ensures hid_init() is called before we reach this point.
 	dualsense_hid_device = SDL_hid_open(vendor_id, product_id, nullptr);
 	if(!dualsense_hid_device)
 	{
@@ -540,6 +543,11 @@ void Controller::UpdateDualSenseBatteryFromHID()
 	uint8_t status0 = 0;
 	bool found = false;
 
+	// HID report offset heuristic based on connection type:
+	// - Bluetooth reports are typically 53 bytes (offset 52 for status0)
+	// - USB reports are typically 64 bytes (offset 53 for status0)
+	// This assumes the report length indicates the connection type, which
+	// may not be reliable for all DualSense firmware versions or future revisions.
 	if(res > 53)
 	{
 		status0 = report[53];
