@@ -136,10 +136,14 @@ class Controller : public QObject
 		bool has_led;
 		bool micbutton_push;
 		uint16_t firmware_version;
-		// Battery tracking (updated from SDL_JOYBATTERYUPDATED / initial power level query).
-		// percent is a coarse representative value (0/5/20/55/100), see updateBattery().
+		// Battery tracking. Two sources exist:
+		//  - SDL_JoystickPowerLevel (coarse: empty/low/medium/full/wired) via updateBattery()
+		//  - exact percentage parsed from the DualSense HID input report
+		//    (UpdateDualSenseBatteryFromHID). When the HID path has produced a reading,
+		//    has_precise_battery is set and the coarse SDL path must not overwrite it.
 		uint8_t battery_percent = 0;
 		ControllerBatteryState battery_state = ControllerBatteryState::Unknown;
+		bool has_precise_battery = false;
 
 #ifdef CHIAKI_GUI_ENABLE_SDL_GAMECONTROLLER
 		QMap<QPair<Sint64, Sint64>, uint8_t> touch_ids;

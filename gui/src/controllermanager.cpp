@@ -529,60 +529,140 @@ void Controller::CloseDualSenseHID()
 	}
 }
 
+// DualSense HID input report layout, byte offsets into the raw SDL_hid_read()
+// buffer (which keeps the report ID in report[0] for both transports).
+//
+// Verified against real captures (USB 0x01 / Bluetooth 0x31) using three
+// independent anchors: gyroscope resting at ~0, accelerometer magnitude ~1g,
+// and the two inactive touchpad points (contact byte 0x80). The Bluetooth
+// report carries one extra byte before the button field, so every field after
+// it is shifted by +1 relative to USB.
+//
+//                          USB (0x01)   BT (0x31)
+//   report id                   [0]         [0]
+//   sticks / triggers         [1..6]      [1..6]
+//   sequence number              [7]         [7]
+//   (BT extra byte)               -          [8]
+//   buttons                   [8..11]     [9..12]
+//   gyroscope                [16..21]    [17..22]
+//   accelerometer            [22..27]    [23..28]
+//   motion timestamp         [28..31]    [29..32]
+//   temperature                  [32]        [33]
+//   touchpad                 [33..40]    [34..41]
+//   status0 (battery)            [53]        [54]
+//
+// NOTE: the report length must NOT be used to tell the transports apart. The
+// Bluetooth report is 78 bytes, but hid_read() into a 64 byte buffer truncates
+// it, so both transports can yield res == 64.
+#define DS_REPORT_ID_USB       0x01
+#define DS_REPORT_ID_BT        0x31
+#define DS_STATUS0_OFFSET_USB  53
+#define DS_STATUS0_OFFSET_BT   54
+
+// Bluetooth reports are 78 bytes, USB 64; size the buffer for the larger one.
+#define DS_REPORT_SIZE         128
+
+// status0 low nibble = battery level in 10% steps, valid range 0..10.
+#define DS_BATTERY_LEVEL_MAX   10
+#define DS_BATTERY_PERCENT_STEP 10
+
+// status0 high nibble = charge status.
+#define DS_CHARGE_DISCHARGING  0x0
+#define DS_CHARGE_CHARGING     0x1
+#define DS_CHARGE_COMPLETE     0x2
+#define DS_CHARGE_VOLTAGE_ERR  0xA
+#define DS_CHARGE_TEMP_ERR     0xB
+#define DS_CHARGE_ERROR        0xF
+
+// Bound the queue drain so a flooded report queue can never stall the 5 s timer.
+#define DS_MAX_REPORTS_PER_POLL 32
+
 void Controller::UpdateDualSenseBatteryFromHID()
 {
 	if(!dualsense_hid_device)
 		return;
 
-	uint8_t report[64];
-	int res = SDL_hid_read(dualsense_hid_device, report, sizeof(report));
-
-	if(res <= 0)
-		return;
-
-	uint8_t status0 = 0;
-	bool found = false;
-
-	// HID report offset based on connection type (from dualsense-tester):
-	// - USB: 64 bytes, status0 at offset 52 (num=0, 52+0=52)
-	// - Bluetooth: 63 bytes, status0 at offset 53 (num=1, 52+1=53)
-	// Note: BT reports have an extra report ID byte at the start
-	if(res >= 64)
+	uint8_t report[DS_REPORT_SIZE];
+	// Non-blocking: drain what is queued and keep the newest report, so the
+	// polling timer never reports a stale level.
+	int last = 0;
+	for(int i = 0; i < DS_MAX_REPORTS_PER_POLL; i++)
 	{
-		// USB mode: 64 bytes, status0 at offset 52
-		status0 = report[52];
-		found = true;
-	}
-	else if(res >= 53)
-	{
-		// Bluetooth mode: 63 bytes, status0 at offset 53
-		status0 = report[53];
-		found = true;
+		int res = SDL_hid_read(dualsense_hid_device, report, sizeof(report));
+		if(res <= 0)
+			break;
+		last = res > (int)sizeof(report) ? (int)sizeof(report) : res;
 	}
 
-	if(!found)
+	if(last <= 0)
 		return;
 
+	int status0_offset;
+	switch(report[0])
+	{
+		case DS_REPORT_ID_USB:
+			status0_offset = DS_STATUS0_OFFSET_USB;
+			break;
+		case DS_REPORT_ID_BT:
+			status0_offset = DS_STATUS0_OFFSET_BT;
+			break;
+		default:
+			// Unknown report id (future firmware, other transport): keep the
+			// coarse SDL value instead of guessing at an offset.
+			return;
+	}
+
+	if(last <= status0_offset)
+		return;
+
+	uint8_t status0 = report[status0_offset];
 	uint8_t battery_level = status0 & 0x0F;
 	uint8_t charge_status = (status0 >> 4) & 0x0F;
 
-	uint8_t new_percent = battery_level * 10;
-	if(battery_level == 10)
-		new_percent = 100;
+	// Reject impossible levels. This is what previously surfaced as 110%/150%:
+	// the offset pointed into the device timestamp counter instead of status0.
+	if(battery_level > DS_BATTERY_LEVEL_MAX)
+	{
+		CHIAKI_LOGW(NULL, "DualSense HID: implausible battery level %u (status0=0x%02x, report id=0x%02x) - ignoring",
+		            battery_level, status0, report[0]);
+		return;
+	}
 
 	ControllerBatteryState new_state;
 	switch(charge_status)
 	{
-		case 0: new_state = ControllerBatteryState::Discharging; break;
-		case 1: new_state = ControllerBatteryState::Charging; break;
-		case 2: new_state = ControllerBatteryState::Full; break;
-		default: new_state = ControllerBatteryState::Unknown; break;
+		case DS_CHARGE_DISCHARGING:
+			new_state = ControllerBatteryState::Discharging;
+			break;
+		case DS_CHARGE_CHARGING:
+			new_state = ControllerBatteryState::Charging;
+			break;
+		case DS_CHARGE_COMPLETE:
+			new_state = ControllerBatteryState::Full;
+			break;
+		case DS_CHARGE_VOLTAGE_ERR:
+		case DS_CHARGE_TEMP_ERR:
+		case DS_CHARGE_ERROR:
+			// Charger/battery fault: capacity reported by the controller is not
+			// trustworthy, so report Unknown rather than a made-up percentage.
+			new_state = ControllerBatteryState::Unknown;
+			break;
+		default:
+			new_state = ControllerBatteryState::Unknown;
+			break;
 	}
 
-	if(battery_percent != new_percent || battery_state != new_state)
+	uint8_t new_percent = battery_level * DS_BATTERY_PERCENT_STEP;
+	if(charge_status == DS_CHARGE_COMPLETE || battery_level == DS_BATTERY_LEVEL_MAX)
+		new_percent = 100;
+
+	if(!has_precise_battery || battery_percent != new_percent || battery_state != new_state)
 	{
 		battery_percent = new_percent;
 		battery_state = new_state;
+		has_precise_battery = true;
+		CHIAKI_LOGD(NULL, "DualSense HID: battery %u%% (level=%u, charge_status=0x%x, report id=0x%02x)",
+		            new_percent, battery_level, charge_status, report[0]);
 		emit BatteryChanged();
 	}
 }
@@ -668,9 +748,12 @@ void Controller::UpdateState(SDL_Event event)
 #if SDL_VERSION_ATLEAST(2, 0, 4)
 // SDL2 only reports coarse power levels (empty/low/medium/full/wired), so map them
 // to representative percentages for display. The exact battery percentage is only
-// available by parsing the DualSense HID 0x31 input report, which is not done here.
+// available by parsing the DualSense HID 0x31/0x01 input report, which is done in
+// UpdateDualSenseBatteryFromHID(); that value wins whenever it is available.
 void Controller::updateBattery(SDL_JoystickPowerLevel level)
 {
+	if(has_precise_battery)
+		return;
 	switch(level)
 	{
 		case SDL_JOYSTICK_POWER_EMPTY: battery_percent = 5; battery_state = ControllerBatteryState::Discharging; break;
