@@ -687,7 +687,6 @@ void QmlMainWindow::show()
 
 namespace {
 constexpr int kDefaultQueueDepthLimit = 1;
-constexpr int kAdaptiveQueueDepthBoost = 1;
 }
 
 void QmlMainWindow::presentFrame(ChiakiFfmpegFrame frame, int32_t frames_lost)
@@ -1466,21 +1465,12 @@ int QmlMainWindow::effectiveQueueDepthLimit() const
     // replace the in-flight one.
     int depth_limit = qMax(configured_limit, 2);
 
-    // Only boost on a sustained EMA depth (which decays), never on the sticky
-    // pending-frame flag: while the queue is at capacity that flag stays set,
-    // which would permanently ratchet the limit up and let the pipeline hold a
-    // deep backlog forever — the exact "latches on and GPU never comes back
-    // down" state. Letting the limit return to baseline lets the queue trim.
-    //
-    // With the baseline now 1 (steady single in-flight frame), the boost only
-    // releases headroom to 2 when the EMA genuinely sustains ~2 frames. Note the
-    // queue depth is clamped by this very limit, so under normal pacing the EMA
-    // stays ~1 and the boost stays off; it exists purely as a safety valve for
-    // sustained decode bursts, and decays right back to baseline.
-    const double avg_depth = queue_depth_average;
-    if (avg_depth >= 1.75)
-        depth_limit += kAdaptiveQueueDepthBoost;
-
+    // No adaptive boost above this floor: the depth signal is clamped by the
+    // very limit it would drive, so under sustained congestion (render slower
+    // than the source, e.g. ~48fps present for a 60fps stream) the EMA pins
+    // at the ceiling, the boost engages and never releases — a deeper queue
+    // means heavier frame mixes, more latency and a permanently high queue
+    // depth average. Bursts are absorbed by the pending-frame slot instead.
     return depth_limit;
 }
 
