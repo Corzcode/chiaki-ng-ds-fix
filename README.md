@@ -12,8 +12,9 @@ An open source PlayStation remote play project serving as the next-generation of
 ### Gyro Steering / 陀螺仪转向
 
 - Added gyro steering: map DS5 gyro roll to the left stick for driving games / 新增陀螺仪转向：将 DS5 陀螺仪偏转映射到左摇杆，适合驾驶类游戏
-- Configurable sensitivity, deadzone, invert and one-touch rest point (recenter) / 可配置灵敏度、死区、反向转向与一键回正中心点
-- Live angle / output stick preview in the settings dialog / 设置界面中实时预览转向角度与输出摇杆值
+- Two modes: Angle (absolute tilt) and Rate+Spring (angular velocity with two-stage spring return) for racing / 两种模式：Angle（绝对倾角）与 Rate+Spring（角速度 + 两段式回正弹簧），适合竞速游戏
+- Configurable sensitivity, deadzone, invert, response curve, idle recenter delay and one-touch rest point (recenter) / 可配置灵敏度、死区、反向转向、响应曲线、闲置回正延迟与一键回正中心点
+- Live angle / output stick preview in the settings dialog, plus in-stream quick toggle in the stream menu (Ctrl+O) / 设置界面中实时预览转向角度与输出摇杆值，串流菜单（Ctrl+O）中可快速开关
 - Re-centers steering on config change and auto-applies settings at startup / 配置变更时自动回到当前握持中心，启动时自动应用配置
 
 ### DualSense Controller / DualSense 手柄
@@ -23,6 +24,7 @@ An open source PlayStation remote play project serving as the next-generation of
 - Suppressed false continuous rumble on flat road in GT7 over Bluetooth / 抑制蓝牙下 GT7 平路持续误震动
 - Auto-reopen wired haptics device if it fails to open or is not restored after hot-swap / 有线触觉设备打不开或热切换后未恢复时自动重开
 - Haptics anti-latency: flush stale queue when backlog exceeds a configurable threshold / 触觉防延迟：队列积压超过可配置阈值时清空旧数据
+- Native DualSense battery via HID with per-transport parsing (USB 0x01 / Bluetooth 0x31), 5 s polling and stale-queue drain / 通过 HID 原生读取 DualSense 电量，按传输类型分别解析（USB 0x01 / 蓝牙 0x31），每 5 秒轮询并清空积压上报
 
 ### HDR Display / HDR 显示
 
@@ -34,7 +36,11 @@ An open source PlayStation remote play project serving as the next-generation of
 
 - Added RAVU Lite r4 spatial upscaler option / 新增 RAVU Lite r4 空间缩放选项
 - Paced the present loop to the video frame rate with backlog-aware catch-up, reducing GPU load and stutter / 显示循环与视频帧率同步并带背压感知追赶，降低 GPU 占用与卡顿
+- Gated the present fast-path on stale backlog to break the latch on high-refresh monitors (e.g. 160 Hz) / 积压过期时关闭快速呈现路径，修复高刷新率显示器（如 160 Hz）上的画面卡死
+- Flush renderer cache on video preset switch so heavy presets (e.g. FSRCNNX) release GPU after switching away / 切换视频预设时清空渲染器缓存，重型预设（如 FSRCNNX）切走后不再占用 GPU
+- Clamped placebo queue depth floor to 2 to avoid video freeze while keeping single in-flight frame latency / 呈现队列下限钳制为 2，既保持单帧低延迟又避免画面冻结
 - Fixed use-after-free on session teardown and quick controller disconnect / 修复会话销毁与快速断开手柄时的使用后释放（UAF）
+- Destroy user shader hooks before GPU teardown to avoid exit crash touching freed GPU memory / 退出前先销毁用户着色器钩子，避免访问已释放 GPU 内存导致崩溃
 - Stops the render loop after the stream exits to avoid stuck GPU usage / 退出流后停止渲染循环，避免 GPU 占用卡住
 
 ### UI / 界面
@@ -42,8 +48,9 @@ An open source PlayStation remote play project serving as the next-generation of
 - Added Simplified Chinese (zh_CN) UI with language selector / 新增简体中文界面与语言选择器
 - Stream stats overlay mode toggle and controller battery display / 流统计信息叠加层新增模式切换与手柄电量显示
 - Added a frame-process latency metric to the stats overlay / 统计叠加层新增帧处理延迟指标
-- Hide the cursor automatically after 1s of inactivity in fullscreen / 全屏下空闲 1 秒后自动隐藏鼠标光标
+- Hide the cursor automatically after 1 s of inactivity in fullscreen / 全屏下空闲 1 秒后自动隐藏鼠标光标
 - Fixed dropdowns not closing on outside click and aligned the controller settings tab / 修复下拉框未在外部点击时关闭、并对齐控制器设置页布局
+- Startup robustness: ignore a stray QT_QUICK_BACKEND=software override and log the effective Qt Quick backend / 启动健壮性：忽略残留的 QT_QUICK_BACKEND=software 覆盖并记录实际使用的 Qt Quick 后端，避免主窗口黑屏
 
 ## Discord
 [chiaki-ng community Discord](https://discord.gg/tAMbRuwXDH)
