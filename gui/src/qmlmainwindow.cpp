@@ -2101,21 +2101,28 @@ void QmlMainWindow::scheduleUpdate()
         if (refresh_rate <= 1.0)
             refresh_rate = 60.0;
 
-        // Drain at display refresh while a backlog exists, so the next frame is
-        // consumed before the pipeline saturates and starts overwriting pending
-        // frames (the periodic drops). A backlog means either a pending frame is
-        // waiting to re-enter, or the queue has already grown past a single in-
-        // flight frame. Otherwise pace to the video source so a 60fps stream on
-        // a high-refresh display isn't re-blitted ~2.4x per video period. The
-        // high-frequency window ends the moment the queue is drained below one
-        // pending frame, so it can't self-sustain the "GPU never drops" latch.
+        // Drain at display refresh only while a *stale* backlog exists, so a
+        // transient stall is consumed quickly without overwriting pending
+        // frames (the periodic drops). A fresh pending frame (a few ms old,
+        // normal arrival jitter) drains on the next video-paced tick anyway;
+        // spinning it at display refresh (~154Hz) costs ~2.5x GPU per video
+        // period and, once the render cost exceeds the vsync interval, the
+        // queue never drains below one in-flight frame -- the loop latches
+        // into high-frequency rendering forever ("stutters until stream
+        // restart"). Gate the fast path on pending-frame staleness
+        // (~1.5 video periods) so it self-exits back to video pacing.
         bool backlog = false;
         if (has_video) {
-            backlog = hasPendingFrame();
-            if (!backlog) {
+            const double video_fps = current_video_fps;
+            const double period_s = video_fps > 0.0 ? 1.0 / video_fps : 1.0 / 60.0;
+            const double stale_threshold = qMax(period_s * 1.5, 0.025);
+            refreshPendingFrameAge();
+            bool has_backlog_frames = hasPendingFrame();
+            if (!has_backlog_frames) {
                 QMutexLocker locker(&placebo_state_mutex);
-                backlog = pl_queue_num_frames(placebo_queue) > 1;
+                has_backlog_frames = pl_queue_num_frames(placebo_queue) > 1;
             }
+            backlog = has_backlog_frames && pendingFrameAge() > stale_threshold;
         }
 
         int interval_ms;
