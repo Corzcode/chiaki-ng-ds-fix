@@ -46,6 +46,7 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_ffmpeg_decoder_init(ChiakiFfmpegDecoder *de
 	decoder->synthetic_candidate_duration_us = decoder->synthetic_frame_duration_us;
 	decoder->synthetic_last_sample_time_us = 0;
 	decoder->synthetic_candidate_count = 0;
+	decoder->synthetic_fastrecover_count = 0;
 
 	decoder->hw_device_ctx = hw_device_ctx ? av_buffer_ref(hw_device_ctx) : NULL;
 	decoder->hw_pix_fmt = AV_PIX_FMT_NONE;
@@ -152,6 +153,29 @@ CHIAKI_EXPORT bool chiaki_ffmpeg_decoder_video_sample_cb(uint8_t *buf, size_t bu
 			observed_duration_us = default_duration_us;
 		else if(observed_duration_us > 1000000.0 / 15.0)
 			observed_duration_us = 1000000.0 / 15.0;
+
+		// Eager return to the known profile rate: a connect-time stall can lock
+		// synthetic_frame_duration_us above the real rate (e.g. a ~48fps estimate
+		// for a 60fps stream) while the symmetric 20%/3-sample gate below sits
+		// just under its switch threshold forever (~19.9% for 48->60, plus jitter
+		// resetting the candidate counter), latching the whole present pipeline
+		// at the slow clock until the stream is restarted. The profile rate is
+		// ground truth, not an estimate: two consecutive arrivals near it snap
+		// straight back. Anything else falls through to the cautious adaptation
+		// below, so genuinely slower content still adapts down normally.
+		if(decoder->synthetic_frame_duration_us > default_duration_us
+			&& fabs(observed_duration_us - default_duration_us) / default_duration_us <= 0.05)
+		{
+			if(++decoder->synthetic_fastrecover_count >= 2)
+			{
+				decoder->synthetic_frame_duration_us = default_duration_us;
+				decoder->synthetic_candidate_duration_us = default_duration_us;
+				decoder->synthetic_candidate_count = 0;
+				decoder->synthetic_fastrecover_count = 0;
+			}
+		}
+		else
+			decoder->synthetic_fastrecover_count = 0;
 
 		double candidate_diff = decoder->synthetic_candidate_duration_us > 0.0
 			? fabs(observed_duration_us - decoder->synthetic_candidate_duration_us) / decoder->synthetic_candidate_duration_us

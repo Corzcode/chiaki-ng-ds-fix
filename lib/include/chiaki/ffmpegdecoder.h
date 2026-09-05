@@ -57,6 +57,7 @@ struct chiaki_ffmpeg_decoder_t
 	double synthetic_candidate_duration_us;
 	uint64_t synthetic_last_sample_time_us;
 	uint8_t synthetic_candidate_count;
+	uint8_t synthetic_fastrecover_count;
 	int64_t last_sample_receive_us;
 };
 
