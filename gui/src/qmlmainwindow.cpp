@@ -2731,8 +2731,15 @@ void QmlMainWindow::render()
         .parts = &overlay_part,
         .num_parts = 1,
     };
-    target_frame.overlays = &overlay;
-    target_frame.num_overlays = 1;
+    // quick_tex is null between swapchain creation and the first successful
+    // resize, and after a failed pl_tex_recreate under VRAM pressure (e.g.
+    // mid-drag resizes). Feeding a null overlay tex hits `pl_assert(img->tex)`
+    // inside libplacebo and aborts. Render video-only this frame instead.
+    const bool has_overlay = quick_tex != nullptr;
+    if (has_overlay) {
+        target_frame.overlays = &overlay;
+        target_frame.num_overlays = 1;
+    }
     if(target_prim)
     {
         target_frame.color.primaries = static_cast<pl_color_primaries>(target_prim);
@@ -2781,6 +2788,19 @@ void QmlMainWindow::render()
 
     if (frame_mix.num_frames == 0) {
         if (replay_attempted && replay_enqueued) {
+            close_started_frame(false);
+            schedule_next_update = true;
+            finalize_render();
+            QMetaObject::invokeMethod(this, [this]() {
+                scheduleUpdate();
+            }, Qt::QueuedConnection);
+            return;
+        }
+
+        if (!has_overlay) {
+            // No video frame and no overlay either (quick_tex lost during a
+            // failed resize) — nothing to composite, wait for the next tick
+            // instead of feeding libplacebo an empty target.
             close_started_frame(false);
             schedule_next_update = true;
             finalize_render();
