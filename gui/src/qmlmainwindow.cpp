@@ -2877,6 +2877,24 @@ void QmlMainWindow::render()
         }
     }
     const struct pl_hook *active_hooks[] = {fsrcnnx_hook};
+    // One-time visibility (Info, not per-frame Debug): log spatial-hook
+    // transitions so settings changes (or silent non-engagement, e.g.
+    // upscale factor <= 1 where every preset looks identical) are observable.
+    if (fsrcnnx_hook != last_active_hook) {
+        const char *hook_name = "unknown";
+        if (!fsrcnnx_hook)
+            hook_name = "none (upscale factor <= 1 or preset without spatial hook)";
+        else if (fsrcnnx_hook == fsr_hook)
+            hook_name = "FSR";
+        else if (fsrcnnx_hook == ravu_hook)
+            hook_name = "RAVU";
+        else if (fsrcnnx_hook == fsrcnnx_hook_8)
+            hook_name = "FSRCNNX x2 8-0-4-1";
+        else if (fsrcnnx_hook == fsrcnnx_hook_16)
+            hook_name = "FSRCNNX x2 16-0-4-1";
+        qCInfo(chiakiGui) << "Spatial upscaler active:" << hook_name;
+        last_active_hook = fsrcnnx_hook;
+    }
     if (fsrcnnx_hook) {
         params.hooks = active_hooks;
         params.num_hooks = 1;
