@@ -707,6 +707,25 @@ void QmlMainWindow::presentFrame(ChiakiFfmpegFrame frame, int32_t frames_lost)
     if (!frame.frame)
         return;
 
+    // Visibility for VRAM-sprawl diagnosis: log decoded-frame geometry
+    // transitions (size/format changes, e.g. corrupt headers after packet-loss
+    // storms, each pin another size generation in libplacebo's slab pool).
+    // Static locals: presentFrame runs on the GUI thread only.
+    {
+        static int last_w = 0, last_h = 0, last_fmt = AV_PIX_FMT_NONE;
+        if (frame.frame->width != last_w || frame.frame->height != last_h || frame.frame->format != last_fmt) {
+            const char *fmt_name = av_get_pix_fmt_name(static_cast<AVPixelFormat>(frame.frame->format));
+            qCInfo(chiakiGui) << "Decoded frame geometry changed:"
+                              << last_w << "x" << last_h << "->"
+                              << frame.frame->width << "x" << frame.frame->height
+                              << (fmt_name ? fmt_name : "unknown")
+                              << (frame.frame->hw_frames_ctx ? "hw" : "sw");
+            last_w = frame.frame->width;
+            last_h = frame.frame->height;
+            last_fmt = frame.frame->format;
+        }
+    }
+
     // End-to-end processing latency: time from when the frame was received and
     // submitted to the decoder (network thread) until it reaches the present
     // layer here (GUI thread). Captures the cross-thread hop, hw transfer and
@@ -1684,7 +1703,10 @@ void QmlMainWindow::init(Settings *settings, bool exit_app_on_stream_exit)
 
     struct pl_log_params log_params = {
         .log_cb = placebo_log_cb,
-        .log_level = PL_LOG_DEBUG,
+        // TRACE for VRAM-sprawl diagnosis (frame-cache reuse decisions,
+        // mix composition). Very verbose: only useful with
+        // QT_LOGGING_RULES=chiaki.gui.debug=true during a repro session.
+        .log_level = PL_LOG_TRACE,
     };
     placebo_log = pl_log_create(PL_API_VER, &log_params);
 
@@ -1962,6 +1984,37 @@ renderer_backend_ready:
     cursor_timer->setSingleShot(true);
     cursor_timer->setInterval(1000);
     connect(cursor_timer, &QTimer::timeout, this, &QmlMainWindow::hideCursorTimeout);
+
+    // Coalesce bursts of Resize events (e.g. window drags): each swapchain
+    // rebuild orphans the previous size generation in libplacebo's slab pool,
+    // which never shrinks — hundreds of resizes in a few seconds pin gigabytes
+    // of VRAM and end in OUT_OF_DEVICE_MEMORY. Rebuild once things settle.
+    resize_debounce_timer = new QTimer(this);
+    resize_debounce_timer->setSingleShot(true);
+    resize_debounce_timer->setInterval(150);
+    connect(resize_debounce_timer, &QTimer::timeout, this, [this]() {
+        if (!isExposed())
+            return;
+        // Rebuild only once the size has settled: a slow drag keeps firing
+        // events past every timeout, and rebuilding on each of them orphans
+        // another size generation in libplacebo's never-shrinking slab pool.
+        // If the size moved again while waiting, re-arm and try later.
+        if (pending_resize_size.isValid() && pending_resize_size != size()) {
+            pending_resize_size = size();
+            resize_debounce_timer->start();
+            return;
+        }
+        pending_resize_size = QSize();
+        updateSwapchain();
+        // If the rebuild did not land (e.g. VRAM-exhausted recreate failure)
+        // and no further resize events arrive, renders would skip forever.
+        // Retry a few times, then park frozen (still better than OOM-death);
+        // any new resize event re-arms the whole cycle.
+        if (swapchain_resize_pending.loadAcquire() != 0 && ++resize_retry_count < 10)
+            resize_debounce_timer->start();
+        else
+            resize_retry_count = 0;
+    });
 
     if (render_backend == RenderBackend::OpenGL) {
         if (!makeOpenGLContextCurrent())
@@ -2260,8 +2313,17 @@ void QmlMainWindow::resizeSwapchain()
 
     const QSize window_size(width() * devicePixelRatio(), height() * devicePixelRatio());
     const bool swapchain_ready = quick_tex && (render_backend != RenderBackend::OpenGL || quick_fbo);
-    if (window_size == swapchain_size && swapchain_ready)
+    if (window_size == swapchain_size && swapchain_ready) {
+        swapchain_resize_pending.storeRelease(0);
         return;
+    }
+
+    // Visibility for VRAM-sprawl diagnosis: every rebuild orphans a size
+    // generation in libplacebo's never-shrinking slab pool. Log it so drag
+    // sessions show rebuild counts directly.
+    qCInfo(chiakiGui) << "Resizing swapchain"
+                      << swapchain_size << "->" << window_size
+                      << (render_backend == RenderBackend::Vulkan ? "vulkan" : "opengl");
 
     QSize new_swapchain_size = window_size;
     pl_swapchain_resize(placebo_swapchain, &new_swapchain_size.rwidth(), &new_swapchain_size.rheight());
@@ -2309,6 +2371,7 @@ void QmlMainWindow::resizeSwapchain()
         swapchain_size = new_swapchain_size;
         quick_window->setRenderTarget(QQuickRenderTarget::fromOpenGLTexture(quick_fbo->texture(), quick_fbo->size()));
         doneOpenGLContextCurrent();
+        swapchain_resize_pending.storeRelease(0);
         return;
     }
 
@@ -2329,6 +2392,21 @@ void QmlMainWindow::resizeSwapchain()
     VkImage vk_image = pl_vulkan_unwrap(placebo_vulkan->gpu, quick_tex, &vk_format, nullptr);
     swapchain_size = new_swapchain_size;
     quick_window->setRenderTarget(QQuickRenderTarget::fromVulkanImage(vk_image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, vk_format, swapchain_size));
+    swapchain_resize_pending.storeRelease(0);
+}
+
+void QmlMainWindow::scheduleSwapchainResize()
+{
+    Q_ASSERT(QThread::currentThread() == QGuiApplication::instance()->thread());
+    if (!isExposed() || !resize_debounce_timer)
+        return;
+    // Record the latest size and (re)start the timer; the timeout handler
+    // rebuilds only if the size has stopped moving. Mark the swapchain stale
+    // so render() skips frames until the rebuild lands.
+    pending_resize_size = size();
+    swapchain_resize_pending.storeRelease(1);
+    resize_retry_count = 0;
+    resize_debounce_timer->start();
 }
 
 void QmlMainWindow::updateSwapchain()
@@ -2469,6 +2547,21 @@ void QmlMainWindow::render()
     if (!placebo_swapchain)
     {
         finalize_render();
+        return;
+    }
+
+    if (swapchain_resize_pending.loadAcquire() != 0)
+    {
+        // A debounced swapchain rebuild is outstanding (window size still
+        // settling, e.g. mid-drag). Presenting against the stale swapchain
+        // makes libplacebo retry an internal recreate on every frame, each
+        // attempt orphaning another size generation in its never-shrinking
+        // slab pool (GBs in seconds -> OOM). Skip this frame; the debounce
+        // timer rebuilds once settled and clears the flag.
+        finalize_render();
+        QMetaObject::invokeMethod(this, [this]() {
+            scheduleUpdate();
+        }, Qt::QueuedConnection);
         return;
     }
 
@@ -3103,7 +3196,12 @@ bool QmlMainWindow::event(QEvent *event)
     switch (event->type()) {
     case QEvent::Expose:
         if (isExposed())
-            updateSwapchain();
+            // Same settle-gate as Resize: during a live drag each repaint
+            // arrives as Expose, and rebuilding the swapchain per Expose
+            // orphans a size generation per step in libplacebo's
+            // never-shrinking slab pool (GBs in seconds -> OOM). Rebuild
+            // once the size settles; same-size events are cheap no-ops.
+            scheduleSwapchainResize();
         else
             if (quick_render->thread() == QThread::currentThread())
                 destroySwapchain();
@@ -3122,7 +3220,7 @@ bool QmlMainWindow::event(QEvent *event)
         else if(session && settings->GetWindowType() == WindowType::AdjustableResolution && isStreamWindowAdjustable())
             settings->SetStreamGeometry(geometry());
         if (isExposed())
-            updateSwapchain();
+            scheduleSwapchainResize();
         break;
     default:
         break;

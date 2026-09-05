@@ -164,6 +164,7 @@ private:
     void destroySwapchain();
     void resizeSwapchain();
     void updateSwapchain();
+    void scheduleSwapchainResize();
     void sync();
     void beginFrame();
     void endFrame();
@@ -266,6 +267,11 @@ private:
     float kept_frame_duration = 0.0f;
     AVFrame *fallback_frame = nullptr;
     QAtomicInteger<int> swapchain_recreate_pending = 0;
+    // Set while a debounced swapchain rebuild is outstanding (window size still
+    // settling, e.g. mid-drag). render() skips frames while set so libplacebo
+    // never runs against the stale swapchain (its per-frame internal recreate
+    // orphans VRAM each time). Cleared once resizeSwapchain has run.
+    QAtomicInteger<int> swapchain_resize_pending = 0;
     QAtomicInteger<int> renderer_cache_flush_pending = 0;
     QAtomicInteger<int> placebo_reset_pending = 0;
     QAtomicInteger<int> placebo_reset_preserve_timeline = 0;
@@ -287,6 +293,9 @@ private:
     VkSemaphore quick_sem = VK_NULL_HANDLE;
     uint64_t quick_sem_value = 0;
     QTimer *update_timer = {};
+    QTimer *resize_debounce_timer = {};
+    QSize pending_resize_size;
+    int resize_retry_count = 0;
     QTimer *cursor_timer = {};
     bool cursor_visible = false;
     bool quick_frame = false;
