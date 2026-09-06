@@ -284,8 +284,10 @@ Item {
         id: placeboSettingsRect
         opacity: 0.0
         visible: opacity && !useSeparateStreamSettingsWindows
-        height: 650
-        width: 1200
+        // Size to the dialog content (toolbar 80 + grid topMargin 20 + slack),
+        // clamped to the stream view so it can never overflow the frame.
+        height: Math.min(Math.round(root.height), Math.max(650, placeboSettingsLoader.item ? Math.ceil(placeboSettingsLoader.item.contentHeight) + 130 : 0))
+        width: Math.min(Math.round(root.width), Math.max(1200, placeboSettingsLoader.item ? Math.ceil(placeboSettingsLoader.item.contentWidth) + 80 : 0))
         anchors.top: parent.top
         anchors.horizontalCenter: parent.horizontalCenter
         color: Material.background
@@ -300,8 +302,8 @@ Item {
         opacity: 0.0
         anchors.top: parent.top
         anchors.horizontalCenter: parent.horizontalCenter
-        height: 500
-        width: 1200
+        height: Math.min(Math.round(root.height), Math.max(500, displaySettingsLoader.item ? Math.ceil(displaySettingsLoader.item.gridHeight) + 130 : 0))
+        width: Math.min(Math.round(root.width), Math.max(1200, displaySettingsLoader.item ? Math.ceil(displaySettingsLoader.item.gridWidth) + 80 : 0))
         visible: opacity && !useSeparateStreamSettingsWindows
         color: Material.background
         Loader {
@@ -315,8 +317,8 @@ Item {
         anchors.top: parent.top
         anchors.horizontalCenter: parent.horizontalCenter
         opacity: 0.0
-        height: 600
-        width: 1200
+        height: Math.min(Math.round(root.height), Math.max(600, colorMappingSettingsLoader.item ? Math.ceil(colorMappingSettingsLoader.item.contentHeight) + 130 : 0))
+        width: Math.min(Math.round(root.width), Math.max(1200, colorMappingSettingsLoader.item ? Math.ceil(colorMappingSettingsLoader.item.contentWidth) + 80 : 0))
         visible: opacity && !useSeparateStreamSettingsWindows
         color: Material.background
         Loader {
@@ -336,7 +338,7 @@ Item {
         x: Math.round(root.mapToGlobal(0, 0).x)
         y: Math.round(root.mapToGlobal(0, 0).y)
         width: Math.round(root.width)
-        height: separateDisplaySettingsLoader.item ? Math.min(Math.round(root.height), Math.round(separateDisplaySettingsLoader.item.gridHeight + 140)) : 500
+        height: Math.min(Math.round(root.height), Math.max(500, separateDisplaySettingsLoader.item ? Math.ceil(separateDisplaySettingsLoader.item.gridHeight) + 140 : 0))
         onVisibleChanged: if (visible) requestActivate()
 
         Shortcut {
@@ -366,7 +368,7 @@ Item {
         x: Math.round(root.mapToGlobal(0, 0).x)
         y: Math.round(root.mapToGlobal(0, 0).y)
         width: Math.round(root.width)
-        height: Math.min(Math.round(root.height), 650)
+        height: Math.min(Math.round(root.height), Math.max(650, separatePlaceboSettingsLoader.item ? Math.ceil(separatePlaceboSettingsLoader.item.contentHeight) + 140 : 0))
         onVisibleChanged: if (visible) requestActivate()
 
         Shortcut {
@@ -396,7 +398,7 @@ Item {
         x: Math.round(root.mapToGlobal(0, 0).x)
         y: Math.round(root.mapToGlobal(0, 0).y)
         width: Math.round(root.width)
-        height: Math.min(Math.round(root.height), 600)
+        height: Math.min(Math.round(root.height), Math.max(600, separateColorMappingSettingsLoader.item ? Math.ceil(separateColorMappingSettingsLoader.item.contentHeight) + 140 : 0))
         onVisibleChanged: if (visible) requestActivate()
 
         Shortcut {

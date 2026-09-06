@@ -12,6 +12,7 @@ import "controls" as C
 DialogView {
     id: dialog
     property alias gridHeight: displayGrid.height
+    property alias gridWidth: displayGrid.implicitWidth
     title: qsTr("Display Settings")
     header: qsTr("* Defaults in () to right of value or marked with (Default)")
     buttonVisible: false

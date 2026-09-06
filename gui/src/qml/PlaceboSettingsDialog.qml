@@ -12,6 +12,10 @@ import "controls" as C
 DialogView {
     id: dialog
     property string options_url: ""
+    // Largest implicit size across all tab grids (+20 grid topMargin), so the
+    // hosting rectangle/window in Main.qml can size itself to the content.
+    readonly property real contentWidth: Math.max(configGrid.implicitWidth, scalingGrid.implicitWidth, debandingGrid.implicitWidth, sigmoidGrid.implicitWidth, colorGrid.implicitWidth, peakGrid.implicitWidth, colorMappingGrid.implicitWidth)
+    readonly property real contentHeight: Math.max(configGrid.implicitHeight, scalingGrid.implicitHeight, debandingGrid.implicitHeight, sigmoidGrid.implicitHeight, colorGrid.implicitHeight, peakGrid.implicitHeight, colorMappingGrid.implicitHeight) + 20
     title: qsTr("Placebo Renderer Settings")
     header: qsTr("* Defaults in () to right of value or marked with (Default)")
     buttonVisible: false
@@ -89,6 +93,7 @@ DialogView {
             Item {
                 // Config
                 GridLayout {
+                    id: configGrid
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter
@@ -171,6 +176,7 @@ DialogView {
             Item {
                 // Scaling
                 GridLayout {
+                    id: scalingGrid
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter
@@ -302,6 +308,7 @@ DialogView {
             Item {
                 // Debanding
                 GridLayout {
+                    id: debandingGrid
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter
@@ -477,6 +484,7 @@ DialogView {
             Item {
                 // Sigmoidization
                 GridLayout {
+                    id: sigmoidGrid
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter
@@ -589,6 +597,7 @@ DialogView {
             Item {
                 // Color
                 GridLayout {
+                    id: colorGrid
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter
@@ -825,6 +834,7 @@ DialogView {
             Item {
                 // Peak Detection
                 GridLayout {
+                    id: peakGrid
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter
@@ -1049,6 +1059,7 @@ DialogView {
             Item {
                 // Color Mapping
                 GridLayout {
+                    id: colorMappingGrid
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter

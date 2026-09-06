@@ -37,6 +37,10 @@ DialogView {
         LinearLight
     }
     id: dialog
+    // Largest implicit size across all tab grids (+20 grid topMargin), so the
+    // hosting rectangle/window in Main.qml can size itself to the content.
+    readonly property real contentWidth: Math.max(gamutGrid1.implicitWidth, gamutGrid2.implicitWidth, toneGrid1.implicitWidth, toneGrid2.implicitWidth, toneGrid3.implicitWidth)
+    readonly property real contentHeight: Math.max(gamutGrid1.implicitHeight, gamutGrid2.implicitHeight, toneGrid1.implicitHeight, toneGrid2.implicitHeight, toneGrid3.implicitHeight) + 20
     title: qsTr("Color Mapping Settings")
     header: qsTr("* Defaults in () to right of value or marked with (Default)")
     buttonVisible: false
@@ -104,6 +108,7 @@ DialogView {
             Item {
                 // Gamut Mapping 1
                 GridLayout {
+                    id: gamutGrid1
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter
@@ -292,6 +297,7 @@ DialogView {
             Item {
                 // Gamut Mapping 2
                 GridLayout {
+                    id: gamutGrid2
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter
@@ -422,6 +428,7 @@ DialogView {
             Item {
                 // Tone-mapping 1
                 GridLayout {
+                    id: toneGrid1
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter
@@ -607,6 +614,7 @@ DialogView {
             Item {
                 // Tone-mapping 2
                 GridLayout {
+                    id: toneGrid2
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter
@@ -808,6 +816,7 @@ DialogView {
             Item {
                 // Tone-mapping 3
                 GridLayout {
+                    id: toneGrid3
                     anchors {
                         top: parent.top
                         horizontalCenter: parent.horizontalCenter
