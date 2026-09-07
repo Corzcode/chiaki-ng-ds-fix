@@ -46,6 +46,8 @@ set(SOURCE_FILES
 	src/qml/qml.qrc
 	include/qmlmainwindow.h
 	src/qmlmainwindow.cpp
+	include/gpuenginemonitor.h
+	src/gpuenginemonitor.cpp
 	include/qmlbackend.h
 	src/qmlbackend.cpp
 	include/qmlcontroller.h
@@ -118,6 +120,9 @@ if (${Qt6WebEngineQuick_FOUND})
 	target_compile_definitions(chiaki PRIVATE CHIAKI_HAVE_WEBENGINE)
 endif()
 target_link_libraries(chiaki SDL2::SDL2)
+if(WIN32)
+	target_link_libraries(chiaki pdh)
+endif()
 if(CHIAKI_ENABLE_SPEEX)
   target_link_libraries(chiaki PkgConfig::SpeexDSP)
   target_compile_definitions(chiaki PRIVATE CHIAKI_GUI_ENABLE_SPEEX)

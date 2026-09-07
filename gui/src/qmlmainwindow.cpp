@@ -1,6 +1,7 @@
 #include "qmlmainwindow.h"
 #include "qmlbackend.h"
 #include "qmlsvgprovider.h"
+#include "gpuenginemonitor.h"
 #include "chiaki/log.h"
 #include "chiaki/time.h"
 #include "streamsession.h"
@@ -826,6 +827,10 @@ void QmlMainWindow::presentFrame(ChiakiFfmpegFrame frame, int32_t frames_lost)
     }
     if (!queued)
     {
+        if (depth_exceeded) {
+            const quint64 evict_total = pending_overflow_evict_total.fetchAndAddRelaxed(1) + 1;
+            qCInfo(chiakiGui) << "pending_overflow_evict count=" << evict_total;
+        }
         const quint64 reset_seed_generation = reset_seed_capture_generation.loadAcquire();
         if (reset_seed_capture_active.loadAcquire() != 0 && reset_seed_generation != 0)
             storeResetSeedFrame(frame.frame, frame.pts, frame.duration, reset_seed_generation);
@@ -1898,6 +1903,8 @@ renderer_backend_ready:
     connect(backend, &QmlBackend::sessionChanged, this, [this, exit_app_on_stream_exit](StreamSession *s) {
         session = s;
         stream_session_active.storeRelease(s ? 1 : 0);
+        if (gpu_engine_monitor)
+            gpu_engine_monitor->setStreamActive(s != nullptr);
         grab_input = 0;
         if (session)
             session->BlockInput(0);
@@ -1979,6 +1986,39 @@ renderer_backend_ready:
     update_timer = new QTimer(this);
     update_timer->setSingleShot(true);
     connect(update_timer, &QTimer::timeout, this, &QmlMainWindow::update);
+
+    // Always-on diagnostic monitor for the intermittent vc0/engine-usage spikes.
+    // Samples this-process GPU engine utilization (PDH) at 500 ms while a stream
+    // is active and, on a detected spike, dumps a bounded ring of recent engine
+    // samples plus this pipeline-context line to <logdir>/gpu_monitor.log.
+    gpu_engine_monitor = new GpuEngineMonitor(this);
+    gpu_engine_monitor->setPipelineSnapshot([this](const GpuEngineMonitor::EngineSample &, QString &out) {
+        double bitrate = 0.0, pkt_loss = 0.0;
+        qint64 frames_lost = 0;
+        if (session) {
+            bitrate = session->GetMeasuredBitrate();
+            pkt_loss = session->GetAveragePacketLoss();
+            frames_lost = session->GetFramesLost();
+        }
+        QStringList parts;
+        parts << QStringLiteral("fps=%1").arg(current_video_fps, 0, 'f', 1)
+              << QStringLiteral("qdepth=%1").arg(queue_depth_average, 0, 'f', 2)
+              << QStringLiteral("latms=%1").arg(processing_latency * 1000.0, 0, 'f', 0)
+              << QStringLiteral("page=%1").arg(pending_frame_age, 0, 'f', 2)
+              << QStringLiteral("dropcur=%1").arg(dropped_frames_current.loadRelaxed())
+              << QStringLiteral("evict=%1").arg(pending_overflow_evict_total.loadRelaxed())
+              << QStringLiteral("bM=%1").arg(bitrate / 1000000.0, 0, 'f', 2)
+              << QStringLiteral("pktloss=%1").arg(pkt_loss, 0, 'f', 2)
+              << QStringLiteral("flost=%1").arg(frames_lost)
+              << QStringLiteral("preset=%1").arg(static_cast<int>(video_preset))
+              << QStringLiteral("video=%1").arg(has_video ? 1 : 0)
+              << QStringLiteral("hw=%1").arg(vulkan_hw_dev_ctx ? 1 : 0)
+              << QStringLiteral("pres=pr=%1/rs=%2")
+                     .arg(placebo_reset_pending.loadRelaxed())
+                     .arg(swapchain_resize_pending.loadRelaxed())
+              << QStringLiteral("pfp=%1").arg(pending_frame_present.loadRelaxed());
+        out = parts.join(QLatin1Char(' '));
+    });
 
     cursor_timer = new QTimer(this);
     cursor_timer->setSingleShot(true);

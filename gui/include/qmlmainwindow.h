@@ -38,6 +38,7 @@ Q_DECLARE_LOGGING_CATEGORY(chiakiGui);
 class Settings;
 class StreamSession;
 class QmlBackend;
+class GpuEngineMonitor;
 class QOffscreenSurface;
 class QOpenGLContext;
 class QOpenGLFramebufferObject;
@@ -219,6 +220,8 @@ private:
 
     QmlBackend *backend = {};
     StreamSession *session = {};
+    GpuEngineMonitor *gpu_engine_monitor = {};
+    QAtomicInteger<quint64> pending_overflow_evict_total = 0;
     AVBufferRef *vulkan_hw_dev_ctx = nullptr;
     double queue_depth_average = 0.0;
     double current_video_fps = 0.0;
