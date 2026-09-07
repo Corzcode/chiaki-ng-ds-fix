@@ -1992,6 +1992,10 @@ renderer_backend_ready:
     // is active and, on a detected spike, dumps a bounded ring of recent engine
     // samples plus this pipeline-context line to <logdir>/gpu_monitor.log.
     gpu_engine_monitor = new GpuEngineMonitor(this);
+    // Bisection hatch for the post-stream heap-corruption crashes: with
+    // CHIAKI_NO_GPU_MONITOR set the PDH polling stays off entirely.
+    if (qEnvironmentVariableIsSet("CHIAKI_NO_GPU_MONITOR"))
+        gpu_engine_monitor->setEnabled(false);
     gpu_engine_monitor->setPipelineSnapshot([this](const GpuEngineMonitor::EngineSample &, QString &out) {
         double bitrate = 0.0, pkt_loss = 0.0;
         qint64 frames_lost = 0;

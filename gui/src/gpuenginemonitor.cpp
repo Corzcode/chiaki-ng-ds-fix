@@ -73,6 +73,11 @@ GpuEngineMonitor::GpuEngineMonitor(QObject *parent)
 {
 	ring_.resize(kRingCapacity);
 
+	timer_ = new QTimer(this);
+	timer_->setInterval(kIntervalMs);
+	timer_->setTimerType(Qt::CoarseTimer);
+	connect(timer_, &QTimer::timeout, this, &GpuEngineMonitor::tick);
+
 #ifdef _WIN32
 	PDH_HQUERY q = nullptr;
 	PDH_STATUS st = PdhOpenQueryW(nullptr, 0, &q);
@@ -94,11 +99,6 @@ GpuEngineMonitor::GpuEngineMonitor(QObject *parent)
 	pdh_counter_ = c;
 	pdh_ok_ = true;
 #endif
-
-	timer_ = new QTimer(this);
-	timer_->setInterval(kIntervalMs);
-	timer_->setTimerType(Qt::CoarseTimer);
-	connect(timer_, &QTimer::timeout, this, &GpuEngineMonitor::tick);
 }
 
 GpuEngineMonitor::~GpuEngineMonitor()
