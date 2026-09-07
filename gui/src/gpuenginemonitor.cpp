@@ -179,16 +179,37 @@ bool GpuEngineMonitor::collectUtil(EngineSample &out)
 
 	DWORD buf_size = 0, item_count = 0;
 	st = PdhGetFormattedCounterArrayW(static_cast<PDH_HCOUNTER>(pdh_counter_), PDH_FMT_DOUBLE, &buf_size, &item_count, nullptr);
-	if (st != PDH_MORE_DATA || item_count == 0)
+	if ((st != PDH_MORE_DATA && st != ERROR_SUCCESS) || item_count == 0 || buf_size == 0)
 		return false;
 
-	QVector<PDH_FMT_COUNTERVALUE_ITEM_W> items(item_count);
-	st = PdhGetFormattedCounterArrayW(static_cast<PDH_HCOUNTER>(pdh_counter_), PDH_FMT_DOUBLE, &buf_size, &item_count, items.data());
-	if (st != ERROR_SUCCESS || item_count == 0)
+	// GPU engine instances come and go between the two passes (NVDEC instances
+	// appear/disappear with decode). A single two-pass read can therefore end
+	// up short: retry with PDH-reported sizing, and never trust an item count
+	// beyond the buffer we actually own. This closes the heap-overflow setup
+	// blamed for the post-stream 0xC0000374 crashes.
+	QVector<PDH_FMT_COUNTERVALUE_ITEM_W> items;
+	DWORD n = 0;
+	for (int attempt = 0; attempt < 3; ++attempt) {
+		const DWORD capacity = buf_size / static_cast<DWORD>(sizeof(PDH_FMT_COUNTERVALUE_ITEM_W)) + 8;
+		if (capacity == 0)
+			return false;
+		items.resize(capacity);
+		DWORD pass_count = capacity;
+		DWORD pass_size = capacity * static_cast<DWORD>(sizeof(PDH_FMT_COUNTERVALUE_ITEM_W));
+		st = PdhGetFormattedCounterArrayW(static_cast<PDH_HCOUNTER>(pdh_counter_), PDH_FMT_DOUBLE, &pass_size, &pass_count, items.data());
+		if (st == ERROR_SUCCESS) {
+			n = qMin(pass_count, capacity);
+			break;
+		}
+		if (st != PDH_MORE_DATA || pass_size <= buf_size)
+			return false;
+		buf_size = pass_size;
+	}
+	if (st != ERROR_SUCCESS || n == 0)
 		return false;
 
 	double max_util = 0.0, max_vdec = 0.0, max_venc = 0.0, max_3d = 0.0, max_copy = 0.0;
-	for (DWORD i = 0; i < item_count; i++) {
+	for (DWORD i = 0; i < n; i++) {
 		if (items[i].FmtValue.CStatus != ERROR_SUCCESS)
 			continue;
 		const QString name = QString::fromWCharArray(items[i].szName);
