@@ -149,6 +149,11 @@ CHIAKI_EXPORT bool chiaki_ffmpeg_decoder_video_sample_cb(uint8_t *buf, size_t bu
 		double default_duration_us = chiaki_ffmpeg_decoder_default_frame_duration_us((unsigned int)decoder->synthetic_framerate.num);
 		if(delivered_frames > 1)
 			observed_duration_us /= (double)delivered_frames;
+		// Pre-clamp value: the fast-recovery gate below must judge against the
+		// *real* arrival interval, not the clamped one. Bursts (two frames
+		// landing together) clamp up to exactly default_duration_us and would
+		// otherwise masquerade as healthy full-rate arrivals.
+		const double observed_raw_us = observed_duration_us;
 		if(observed_duration_us < default_duration_us)
 			observed_duration_us = default_duration_us;
 		else if(observed_duration_us > 1000000.0 / 15.0)
@@ -160,13 +165,21 @@ CHIAKI_EXPORT bool chiaki_ffmpeg_decoder_video_sample_cb(uint8_t *buf, size_t bu
 		// just under its switch threshold forever (~19.9% for 48->60, plus jitter
 		// resetting the candidate counter), latching the whole present pipeline
 		// at the slow clock until the stream is restarted. The profile rate is
-		// ground truth, not an estimate: two consecutive arrivals near it snap
+		// ground truth, not an estimate: three consecutive arrivals near it snap
 		// straight back. Anything else falls through to the cautious adaptation
 		// below, so genuinely slower content still adapts down normally.
+		//
+		// Judged on observed_raw_us (pre-clamp): a burst clamps to exactly
+		// default_duration_us, so judging on the clamped value lets bursts pass
+		// as healthy arrivals and snap a genuinely slower stream onto the fast
+		// clock - which the 20% gate below then pushes straight back, an
+		// oscillation that surfaces as micro-jitter. Three consecutive samples
+		// (not two) keeps a burst pair from tripping it, and a burst is normally
+		// followed by a late frame that resets the counter anyway.
 		if(decoder->synthetic_frame_duration_us > default_duration_us
-			&& fabs(observed_duration_us - default_duration_us) / default_duration_us <= 0.05)
+			&& fabs(observed_raw_us - default_duration_us) / default_duration_us <= 0.05)
 		{
-			if(++decoder->synthetic_fastrecover_count >= 2)
+			if(++decoder->synthetic_fastrecover_count >= 3)
 			{
 				decoder->synthetic_frame_duration_us = default_duration_us;
 				decoder->synthetic_candidate_duration_us = default_duration_us;

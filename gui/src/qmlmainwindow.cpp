@@ -1706,12 +1706,16 @@ void QmlMainWindow::init(Settings *settings, bool exit_app_on_stream_exit)
             qFatal("Failed initializing OpenGL backend");
     };
 
+    // TRACE sits in the render hot path: libplacebo formats every per-frame
+    // frame-cache reuse and mix composition message *before* the callback
+    // fires, so enabling it unconditionally costs time on every present and
+    // surfaces as periodic jitter. Keep DEBUG by default; opt in per-session
+    // with CHIAKI_PLACEBO_LOG_TRACE=1 (plus
+    // QT_LOGGING_RULES=chiaki.gui.debug=true) when diagnosing VRAM slab sprawl.
+    const bool placebo_trace = qEnvironmentVariableIsSet("CHIAKI_PLACEBO_LOG_TRACE");
     struct pl_log_params log_params = {
         .log_cb = placebo_log_cb,
-        // TRACE for VRAM-sprawl diagnosis (frame-cache reuse decisions,
-        // mix composition). Very verbose: only useful with
-        // QT_LOGGING_RULES=chiaki.gui.debug=true during a repro session.
-        .log_level = PL_LOG_TRACE,
+        .log_level = placebo_trace ? PL_LOG_TRACE : PL_LOG_DEBUG,
     };
     placebo_log = pl_log_create(PL_API_VER, &log_params);
 
@@ -1987,14 +1991,21 @@ renderer_backend_ready:
     update_timer->setSingleShot(true);
     connect(update_timer, &QTimer::timeout, this, &QmlMainWindow::update);
 
-    // Always-on diagnostic monitor for the intermittent vc0/engine-usage spikes.
+    // Opt-in diagnostic monitor for the intermittent vc0/engine-usage spikes.
     // Samples this-process GPU engine utilization (PDH) at 500 ms while a stream
     // is active and, on a detected spike, dumps a bounded ring of recent engine
     // samples plus this pipeline-context line to <logdir>/gpu_monitor.log.
+    //
+    // Off by default: the sampler runs on the GUI thread, and both its PDH read
+    // (an array over *every* GPU engine instance, each name turned into a
+    // QString) and its 5 s accepted-PID refresh (CreateToolhelp32Snapshot
+    // across the whole system) are blocking, allocation-heavy calls. Landing
+    // one inside a 16.7 ms frame budget drops a frame, which reads as
+    // periodic micro-stutter in an otherwise smooth stream. Enable with
+    // CHIAKI_GPU_MONITOR=1 when chasing vc0 spikes; CHIAKI_NO_GPU_MONITOR
+    // still forces it off.
     gpu_engine_monitor = new GpuEngineMonitor(this);
-    // Bisection hatch for the post-stream heap-corruption crashes: with
-    // CHIAKI_NO_GPU_MONITOR set the PDH polling stays off entirely.
-    if (qEnvironmentVariableIsSet("CHIAKI_NO_GPU_MONITOR"))
+    if (!qEnvironmentVariableIsSet("CHIAKI_GPU_MONITOR") || qEnvironmentVariableIsSet("CHIAKI_NO_GPU_MONITOR"))
         gpu_engine_monitor->setEnabled(false);
     gpu_engine_monitor->setPipelineSnapshot([this](const GpuEngineMonitor::EngineSample &, QString &out) {
         double bitrate = 0.0, pkt_loss = 0.0;
@@ -2444,6 +2455,19 @@ void QmlMainWindow::scheduleSwapchainResize()
     Q_ASSERT(QThread::currentThread() == QGuiApplication::instance()->thread());
     if (!isExposed() || !resize_debounce_timer)
         return;
+    // Only debounce when the target size genuinely changed. Expose fires for
+    // far more than resizes (occlusion changes, focus, DWM re-composition),
+    // and render() skips every frame while this flag is set — so stalling the
+    // full debounce window on each Expose turns what used to be a synchronous
+    // no-op swapchain refresh into a visible hitch. Same size with a live
+    // swapchain: refresh now, which resizeSwapchain short-circuits.
+    const QSize target_size(width() * devicePixelRatio(), height() * devicePixelRatio());
+    const bool swapchain_ready = quick_tex && (render_backend != RenderBackend::OpenGL || quick_fbo);
+    if (target_size == swapchain_size && swapchain_ready) {
+        swapchain_resize_pending.storeRelease(0);
+        updateSwapchain();
+        return;
+    }
     // Record the latest size and (re)start the timer; the timeout handler
     // rebuilds only if the size has stopped moving. Mark the swapchain stale
     // so render() skips frames until the rebuild lands.
