@@ -2028,10 +2028,31 @@ renderer_backend_ready:
               << QStringLiteral("preset=%1").arg(static_cast<int>(video_preset))
               << QStringLiteral("video=%1").arg(has_video ? 1 : 0)
               << QStringLiteral("hw=%1").arg(vulkan_hw_dev_ctx ? 1 : 0)
-              << QStringLiteral("pres=pr=%1/rs=%2")
+               << QStringLiteral("pres=pr=%1/rs=%2")
                      .arg(placebo_reset_pending.loadRelaxed())
                      .arg(swapchain_resize_pending.loadRelaxed())
-              << QStringLiteral("pfp=%1").arg(pending_frame_present.loadRelaxed());
+               << QStringLiteral("pfp=%1").arg(pending_frame_present.loadRelaxed());
+        // Render-side context for VC0 triage: which spatial hook actually ran,
+        // at what upscale factor and geometry, plus display refresh. Written on
+        // the render thread, read here on the GUI thread via atomics.
+        const int hook_id = last_hook_id.loadRelaxed();
+        const char *hook_name = "none";
+        switch (hook_id) {
+        case 1: hook_name = "FSR"; break;
+        case 2: hook_name = "RAVU"; break;
+        case 3: hook_name = "FSRCNNX8"; break;
+        case 4: hook_name = "FSRCNNX16"; break;
+        default: break;
+        }
+        double refresh = screen() ? screen()->refreshRate() : 0.0;
+        if (refresh < 1.0)
+            refresh = 0.0;
+        parts << QStringLiteral("hook=%1").arg(QLatin1String(hook_name))
+              << QStringLiteral("upf=%1").arg(last_upscale_factor_milli.loadRelaxed() / 1000.0, 0, 'f', 2)
+              << QStringLiteral("src=%1x%2").arg(last_src_w.loadRelaxed()).arg(last_src_h.loadRelaxed())
+              << QStringLiteral("dst=%1x%2").arg(last_dst_w.loadRelaxed()).arg(last_dst_h.loadRelaxed())
+              << QStringLiteral("swap=%1x%2").arg(last_swap_w.loadRelaxed()).arg(last_swap_h.loadRelaxed())
+              << QStringLiteral("ref=%1").arg(refresh, 0, 'f', 0);
         out = parts.join(QLatin1Char(' '));
     });
 
@@ -2417,6 +2438,8 @@ void QmlMainWindow::resizeSwapchain()
         quick_fbo = new_quick_fbo;
         quick_tex = new_quick_tex;
         swapchain_size = new_swapchain_size;
+        last_swap_w.storeRelaxed(new_swapchain_size.width());
+        last_swap_h.storeRelaxed(new_swapchain_size.height());
         quick_window->setRenderTarget(QQuickRenderTarget::fromOpenGLTexture(quick_fbo->texture(), quick_fbo->size()));
         doneOpenGLContextCurrent();
         swapchain_resize_pending.storeRelease(0);
@@ -2439,6 +2462,8 @@ void QmlMainWindow::resizeSwapchain()
     VkFormat vk_format;
     VkImage vk_image = pl_vulkan_unwrap(placebo_vulkan->gpu, quick_tex, &vk_format, nullptr);
     swapchain_size = new_swapchain_size;
+    last_swap_w.storeRelaxed(new_swapchain_size.width());
+    last_swap_h.storeRelaxed(new_swapchain_size.height());
     quick_window->setRenderTarget(QQuickRenderTarget::fromVulkanImage(vk_image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, vk_format, swapchain_size));
     swapchain_resize_pending.storeRelease(0);
 }
@@ -3028,6 +3053,22 @@ void QmlMainWindow::render()
             const float upscale_factor = qMin(dst_width / src_width, dst_height / src_height);
             fsrcnnx_hook = select_spatial_hook(video_preset, configured_upscaler, upscale_factor,
                                                fsr_hook, ravu_hook, fsrcnnx_hook_8, fsrcnnx_hook_16);
+            // Snapshot geometry for the GPU monitor pipeline line.
+            last_upscale_factor_milli.storeRelaxed(static_cast<int>(upscale_factor * 1000.0f));
+            last_src_w.storeRelaxed(static_cast<int>(src_width));
+            last_src_h.storeRelaxed(static_cast<int>(src_height));
+            last_dst_w.storeRelaxed(static_cast<int>(dst_width));
+            last_dst_h.storeRelaxed(static_cast<int>(dst_height));
+            int hook_id = 0;
+            if (fsrcnnx_hook == fsr_hook)
+                hook_id = 1;
+            else if (fsrcnnx_hook == ravu_hook)
+                hook_id = 2;
+            else if (fsrcnnx_hook == fsrcnnx_hook_8)
+                hook_id = 3;
+            else if (fsrcnnx_hook == fsrcnnx_hook_16)
+                hook_id = 4;
+            last_hook_id.storeRelaxed(hook_id);
         }
     }
     const struct pl_hook *active_hooks[] = {fsrcnnx_hook};

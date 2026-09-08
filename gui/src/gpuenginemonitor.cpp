@@ -7,7 +7,9 @@
 #include <QFile>
 #include <QDateTime>
 #include <QTextStream>
+#include <algorithm>
 #include <chrono>
+#include <vector>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -209,6 +211,8 @@ bool GpuEngineMonitor::collectUtil(EngineSample &out)
 		return false;
 
 	double max_util = 0.0, max_vdec = 0.0, max_venc = 0.0, max_3d = 0.0, max_copy = 0.0;
+	std::vector<std::pair<QString, double>> candidates;
+	candidates.reserve(n);
 	for (DWORD i = 0; i < n; i++) {
 		if (items[i].FmtValue.CStatus != ERROR_SUCCESS)
 			continue;
@@ -216,6 +220,8 @@ bool GpuEngineMonitor::collectUtil(EngineSample &out)
 		if (!accepted_pids_.contains(instancePid(name)))
 			continue;
 		const double u = items[i].FmtValue.doubleValue;
+		if (u > 0.5)
+			candidates.emplace_back(name, u);
 		const QString eng = instanceEngineType(name);
 		if (u > max_util)
 			max_util = u;
@@ -242,6 +248,16 @@ bool GpuEngineMonitor::collectUtil(EngineSample &out)
 	out.compute_3d = max_3d;
 	out.copy = max_copy;
 	out.ts_ms = monoMs();
+	// Keep the raw top-5 instances so VC0 vs VC1 (or 3D q0 vs q1) stays
+	// visible; aggregation into vdec/3d alone would hide which one spiked.
+	std::sort(candidates.begin(), candidates.end(),
+		[](const std::pair<QString, double> &a, const std::pair<QString, double> &b) {
+			return a.second > b.second;
+		});
+	QStringList top;
+	for (size_t k = 0; k < candidates.size() && k < 5; k++)
+		top << QStringLiteral("%1=%2").arg(candidates[k].first).arg(candidates[k].second, 0, 'f', 1);
+	out.top_instances = top.join(QLatin1String(" | "));
 	return true;
 #else
 	Q_UNUSED(out);
@@ -309,18 +325,20 @@ void GpuEngineMonitor::flushSnapshot(const EngineSample &now, const QString &pip
 	const QString ts = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss-zzz"));
 	out << "\n===== GPU Engine spike " << ts << " baseline=" << baseline
 	    << " utilized=" << now.utilized << " =====\n";
-	out << "engine trend (older -> latest, every 500ms):\n";
+	out << "engine trend (older -> latest, every 500ms, dtms vs spike):\n";
 	// Dump the trailing ~24 samples (12 s) before the spike.
 	const int start = qMax(0, ring_size_ - 24);
 	for (int i = start; i < ring_size_; i++) {
 		const int idx = (ring_head_ - (ring_size_ - i) + kRingCapacity) % kRingCapacity;
 		const EngineSample &s = ring_[idx];
-		out << "  util=" << QString::number(s.utilized, 'f', 1)
+		out << "  dt=" << (s.ts_ms - now.ts_ms)
+		    << " util=" << QString::number(s.utilized, 'f', 1)
 		    << " vdec=" << QString::number(s.video_decode, 'f', 1)
 		    << " venc=" << QString::number(s.video_encode, 'f', 1)
 		    << " 3d=" << QString::number(s.compute_3d, 'f', 1)
 		    << " copy=" << QString::number(s.copy, 'f', 1) << "\n";
 	}
+	out << "top instances at spike: " << (now.top_instances.isEmpty() ? QStringLiteral("(none>0.5%)") : now.top_instances) << "\n";
 	if (!pipeline_ctx.isEmpty())
 		out << "pipeline: " << pipeline_ctx << "\n";
 	out.flush();

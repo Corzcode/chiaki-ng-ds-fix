@@ -33,9 +33,12 @@ class GpuEngineMonitor : public QObject
 			double video_decode = 0.0;
 			double video_encode = 0.0;
 			double compute_3d = 0.0; // 3D + Compute + CUDA
-			double copy = 0.0;
-			qint64 ts_ms = 0; // monotonic ms at sample time
-		};
+		double copy = 0.0;
+		qint64 ts_ms = 0; // monotonic ms at sample time
+		// Raw top-N PDH instances at sample time ("<instance>=<util>"),
+		// so VC0/VC1-style engines stay distinguishable after aggregation.
+		QString top_instances;
+	};
 
 		explicit GpuEngineMonitor(QObject *parent = nullptr);
 		~GpuEngineMonitor() override;

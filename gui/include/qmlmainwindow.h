@@ -312,6 +312,17 @@ private:
     const struct pl_hook *fsrcnnx_hook_8 = nullptr;
     const struct pl_hook *fsrcnnx_hook_16 = nullptr;
     const struct pl_hook *last_active_hook = nullptr;
+    // Diagnostic snapshot of the last render's spatial-hook geometry for the
+    // GPU monitor pipeline line (atomics: written on render thread, read on
+    // GUI thread). hook id: 0 none, 1 FSR, 2 RAVU, 3 FSRCNNX8, 4 FSRCNNX16.
+    QAtomicInteger<int> last_hook_id = 0;
+    QAtomicInteger<int> last_upscale_factor_milli = 0;
+    QAtomicInteger<int> last_src_w = 0;
+    QAtomicInteger<int> last_src_h = 0;
+    QAtomicInteger<int> last_dst_w = 0;
+    QAtomicInteger<int> last_dst_h = 0;
+    QAtomicInteger<int> last_swap_w = 0;
+    QAtomicInteger<int> last_swap_h = 0;
 
     struct {
         PFN_vkGetDeviceProcAddr vkGetDeviceProcAddr;
