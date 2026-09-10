@@ -3,6 +3,9 @@
 #include <chiaki/time.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/pixdesc.h>
+#if defined(_WIN32)
+#include <libavutil/hwcontext_d3d11va.h>
+#endif
 #include <math.h>
 
 static enum AVCodecID chiaki_codec_av_codec_id(ChiakiCodec codec)
@@ -24,6 +27,65 @@ static double chiaki_ffmpeg_decoder_default_frame_duration_us(unsigned int max_f
 		fps = 60.0;
 	return 1000000.0 / fps;
 }
+
+#if defined(_WIN32)
+// d3d11va decodes into an NV12/P010 texture array owned by the frames context.
+// The GUI renders those textures zero-copy through pl_d3d11_wrap(), which only
+// marks a wrapped texture as sampleable when it was created with
+// D3D11_BIND_SHADER_RESOURCE. ffmpeg's d3d11va backend uses
+// AVD3D11VAFramesContext.BindFlags verbatim (no default, nothing OR-ed in), so
+// the flag has to be requested explicitly. Without it pl_render_image() rejects
+// every decoded frame ("texture->params.sampleable" validation failure in
+// renderer.c) and the stream shows nothing but a black window.
+//
+// A frames context must exist before the first decoded frame can be allocated,
+// and its dimensions are only known once the decoder has parsed the stream's
+// sequence header - which is exactly when get_format() runs. Derive the
+// standard parameters from avcodec_get_hw_frames_parameters() (the same helper
+// libavcodec uses internally) and then add the shader-resource bit, so the pool
+// size, pixel format and dimensions keep matching what the decoder expects.
+static enum AVPixelFormat chiaki_ffmpeg_get_hw_format(AVCodecContext *ctx, const enum AVPixelFormat *pix_fmts)
+{
+	ChiakiFfmpegDecoder *decoder = ctx->opaque;
+	for(const enum AVPixelFormat *p = pix_fmts; *p != AV_PIX_FMT_NONE; p++)
+	{
+		if(*p != decoder->hw_pix_fmt)
+			continue;
+
+		if(*p == AV_PIX_FMT_D3D11 && ctx->hw_device_ctx && !ctx->hw_frames_ctx)
+		{
+			AVBufferRef *frames_ref = NULL;
+			if(avcodec_get_hw_frames_parameters(ctx, ctx->hw_device_ctx, *p, &frames_ref) >= 0 && frames_ref)
+			{
+				AVHWFramesContext *frames = (AVHWFramesContext *)frames_ref->data;
+				AVD3D11VAFramesContext *hwframes = (AVD3D11VAFramesContext *)frames->hwctx;
+				hwframes->BindFlags |= D3D11_BIND_SHADER_RESOURCE;
+				if(av_hwframe_ctx_init(frames_ref) < 0)
+				{
+					CHIAKI_LOGW(decoder->log, "Failed to initialize D3D11VA frames context, "
+						"zero-copy decoding may be unavailable");
+					av_buffer_unref(&frames_ref);
+				}
+				else
+				{
+					CHIAKI_LOGI(decoder->log, "D3D11VA frames context: %dx%d %s, pool=%d, bind=0x%x",
+						frames->width, frames->height, av_get_pix_fmt_name(frames->sw_format),
+						frames->initial_pool_size, hwframes->BindFlags);
+					ctx->hw_frames_ctx = frames_ref;
+				}
+			}
+			else
+			{
+				CHIAKI_LOGW(decoder->log, "Failed to derive D3D11VA frames parameters for %dx%d",
+					ctx->width, ctx->height);
+			}
+		}
+
+		return *p;
+	}
+	return AV_PIX_FMT_NONE;
+}
+#endif
 
 CHIAKI_EXPORT ChiakiErrorCode chiaki_ffmpeg_decoder_init(ChiakiFfmpegDecoder *decoder, ChiakiLog *log,
 		ChiakiCodec codec, unsigned int max_fps, const char *hw_decoder_name, AVBufferRef *hw_device_ctx,
@@ -106,6 +168,16 @@ CHIAKI_EXPORT ChiakiErrorCode chiaki_ffmpeg_decoder_init(ChiakiFfmpegDecoder *de
 	decoder->codec_context->framerate = decoder->synthetic_framerate;
 	decoder->codec_context->pkt_timebase = decoder->synthetic_time_base;
 	decoder->codec_context->time_base = decoder->synthetic_time_base;
+
+#if defined(_WIN32)
+	// Negotiate the hardware pixel format ourselves so the decoder's texture
+	// pool carries D3D11_BIND_SHADER_RESOURCE; see chiaki_ffmpeg_get_hw_format.
+	if(decoder->hw_pix_fmt == AV_PIX_FMT_D3D11)
+	{
+		decoder->codec_context->opaque = decoder;
+		decoder->codec_context->get_format = chiaki_ffmpeg_get_hw_format;
+	}
+#endif
 
 	if(avcodec_open2(decoder->codec_context, decoder->av_codec, NULL) < 0)
 	{
