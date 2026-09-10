@@ -39,10 +39,13 @@ extern "C" {
 #include <QQuickRenderTarget>
 #include <QQuickRenderControl>
 #include <QQuickGraphicsDevice>
+#include <QAtomicInteger>
 #include <QTimer>
 #include <QtGlobal>
+#include <cstdint>
 #include <cstring>
 #include <utility>
+#include <vector>
 #if defined(Q_OS_MACOS)
 #include <objc/message.h>
 #endif
@@ -122,6 +125,81 @@ static QString graphicsApiName(QSGRendererInterface::GraphicsApi api)
 }
 
 #if defined(Q_OS_WIN)
+// Ask Windows whether the display this window lives on is actually in HDR
+// ("advanced colour") mode.
+//
+// This is deliberately not derived from the swapchain or from DXGI: a swapchain
+// keeps whatever colour space it was last given, and CheckColorSpaceSupport()
+// only reports what the *monitor* is able to present. Both therefore happily
+// say "HDR10 is fine" while the desktop is running in plain SDR mode. Handing
+// the D3D11 swapchain a PQ/BT.2020 colour space in that state makes the display
+// read PQ-encoded output as sRGB, which blows the picture out completely.
+// DisplayConfig is the same source the Windows Settings app reads, so it
+// reports the HDR state the user actually sees.
+static bool queryDesktopHdrEnabled(HWND hwnd)
+{
+    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    MONITORINFOEXW mi = {};
+    mi.cbSize = sizeof(mi);
+    if (!monitor || !GetMonitorInfoW(monitor, reinterpret_cast<MONITORINFO *>(&mi)))
+        return false;
+
+    UINT32 num_paths = 0, num_modes = 0;
+    if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &num_paths, &num_modes) != ERROR_SUCCESS)
+        return false;
+
+    std::vector<DISPLAYCONFIG_PATH_INFO> paths(num_paths);
+    std::vector<DISPLAYCONFIG_MODE_INFO> modes(num_modes);
+    if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &num_paths, paths.data(),
+                           &num_modes, modes.data(), nullptr) != ERROR_SUCCESS)
+        return false;
+
+    for (UINT32 i = 0; i < num_paths; i++) {
+        // Resolve the path to its GDI device name so we can tell whether it is
+        // the monitor our window is on.
+        DISPLAYCONFIG_SOURCE_DEVICE_NAME src = {};
+        src.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+        src.header.size = sizeof(src);
+        src.header.adapterId = paths[i].sourceInfo.adapterId;
+        src.header.id = paths[i].sourceInfo.id;
+        if (DisplayConfigGetDeviceInfo(&src.header) != ERROR_SUCCESS)
+            continue;
+        if (wcscmp(src.viewGdiDeviceName, mi.szDevice) != 0)
+            continue;
+
+        DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO color = {};
+        color.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO;
+        color.header.size = sizeof(color);
+        color.header.adapterId = paths[i].targetInfo.adapterId;
+        color.header.id = paths[i].targetInfo.id;
+        if (DisplayConfigGetDeviceInfo(&color.header) != ERROR_SUCCESS)
+            return false; // Windows before 1703 has no advanced colour query
+        return color.advancedColorEnabled != 0;
+    }
+
+    return false;
+}
+
+static bool desktopHdrEnabled(HWND hwnd)
+{
+    // QueryDisplayConfig is not free and the OS setting changes rarely, so
+    // cache for a second: toggling HDR still takes effect without a restart,
+    // but the render loop does not pay for a query every frame.
+    static QAtomicInteger<quint64> cached_at_us = 0;
+    static QAtomicInteger<int> cached_value = 0;
+    static QAtomicInteger<int> logged = 0;
+    const uint64_t now = chiaki_time_now_monotonic_us();
+    if (now - cached_at_us.loadRelaxed() < 1000000)
+        return cached_value.loadRelaxed() != 0;
+
+    const bool value = queryDesktopHdrEnabled(hwnd);
+    if (logged.testAndSetRelaxed(0, 1))
+        qCInfo(chiakiGui) << "Desktop advanced colour (HDR) enabled:" << value;
+    cached_value.storeRelaxed(value ? 1 : 0);
+    cached_at_us.storeRelaxed(now);
+    return value;
+}
+
 // Zero-copy mapping of a d3d11va-decoded AVFrame into a pl_frame. The decoded
 // frame is a NV12/P010 texture array (one slice per frame); each plane is
 // exposed through a typed shader-resource view of that slice, which
@@ -3240,6 +3318,33 @@ void QmlMainWindow::render()
             hint.hdr.min_luma = hint.hdr.max_luma / (float)target_contrast;
             break;
     }
+    // The swapchain's colour space describes the *output*, not the source
+    // stream. Deriving it from the source (as the code above does) is what put
+    // the D3D11 backend on an HDR10 swapchain while this machine's desktop was
+    // in SDR mode, which blew out every HDR stream. Only ask for an HDR output
+    // surface when the desktop really is in HDR mode, and never while the main
+    // window is on screen: its only content is the sRGB QML UI, and forcing SDR
+    // there is also what restores the window after an HDR stream ends. (The
+    // previous code let the hint decay to an empty struct in that case, which
+    // the D3D11 backend treats as "no change", so the HDR10 swapchain stayed
+    // configured forever and the UI remained washed out.)
+#if defined(Q_OS_WIN)
+    if (render_backend == RenderBackend::D3D11) {
+        const bool streaming = stream_session_active.loadAcquire() != 0;
+        const bool output_is_hdr = streaming && desktopHdrEnabled(reinterpret_cast<HWND>(winId()));
+        // One line per transition; this is the first thing to look at when the
+        // output looks blown out.
+        static QAtomicInteger<int> last_output_hdr = -1;
+        if (last_output_hdr.loadRelaxed() != (output_is_hdr ? 1 : 0)) {
+            last_output_hdr.storeRelaxed(output_is_hdr ? 1 : 0);
+            qCInfo(chiakiGui) << "Swapchain output colour space:"
+                              << (output_is_hdr ? "HDR10 (PQ/BT.2020)" : "SDR (sRGB)")
+                              << "streaming=" << streaming;
+        }
+        if (!output_is_hdr)
+            hint = pl_color_space_srgb;
+    }
+#endif
     pl_swapchain_colorspace_hint(placebo_swapchain, &hint);
 
     struct pl_frame target_frame = {};
