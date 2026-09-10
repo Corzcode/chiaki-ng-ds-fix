@@ -2896,8 +2896,19 @@ void QmlMainWindow::endFrame()
     quick_render->endFrame();
 
 #if defined(Q_OS_WIN)
-    if (render_backend == RenderBackend::D3D11)
+    if (render_backend == RenderBackend::D3D11) {
+        // Qt Quick leaves the QML render-target texture bound as the
+        // output-merger render target after it finishes a frame. libplacebo
+        // then samples that very texture as the stream overlay; on D3D11 a
+        // resource that is still bound on output cannot simultaneously be bound
+        // as a shader resource, so the runtime forces the SRV to NULL and the
+        // overlay silently samples nothing (opaque-black window). This is the
+        // D3D11 counterpart of the Vulkan hold/release synchronization below:
+        // release the output binding before libplacebo composites.
+        if (d3d11_immediate_ctx)
+            d3d11_immediate_ctx->OMSetRenderTargets(0, nullptr, nullptr);
         return;
+    }
 #endif
 
     struct pl_vulkan_release_params release_params = {
