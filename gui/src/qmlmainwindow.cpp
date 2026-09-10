@@ -2731,7 +2731,11 @@ void QmlMainWindow::resizeSwapchain()
         swapchain_size = new_swapchain_size;
         last_swap_w.storeRelaxed(new_swapchain_size.width());
         last_swap_h.storeRelaxed(new_swapchain_size.height());
-        quick_window->setRenderTarget(QQuickRenderTarget::fromD3D11Texture(new_d3d11_tex, new_swapchain_size));
+        // Pass the DXGI format explicitly: the two-argument overload assumes
+        // DXGI_FORMAT_R8G8B8A8_UNORM and fails to build the SRV (E_INVALIDARG)
+        // for our B8G8R8A8_UNORM texture.
+        quick_window->setRenderTarget(QQuickRenderTarget::fromD3D11Texture(
+            new_d3d11_tex, DXGI_FORMAT_B8G8R8A8_UNORM, new_swapchain_size, 1));
         new_d3d11_tex->Release();
         swapchain_resize_pending.storeRelease(0);
         return;
@@ -2841,6 +2845,17 @@ void QmlMainWindow::beginFrame()
         quick_render->beginFrame();
         return;
     }
+
+#if defined(Q_OS_WIN)
+    // D3D11 shares libplacebo's immediate context with Qt Quick on the same
+    // thread: submissions are already serialized, so unlike Vulkan there is
+    // no externally-owned image to hold or semaphore to wait on.
+    if (render_backend == RenderBackend::D3D11) {
+        quick_frame = true;
+        quick_render->beginFrame();
+        return;
+    }
+#endif
 
     struct pl_vulkan_hold_params hold_params = {
         .tex = quick_tex,
