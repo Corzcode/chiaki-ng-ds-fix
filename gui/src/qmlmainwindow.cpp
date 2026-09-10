@@ -3333,10 +3333,15 @@ void QmlMainWindow::render()
         const bool streaming = stream_session_active.loadAcquire() != 0;
         const bool output_is_hdr = streaming && desktopHdrEnabled(reinterpret_cast<HWND>(winId()));
         // One line per transition; this is the first thing to look at when the
-        // output looks blown out.
-        static QAtomicInteger<int> last_output_hdr = -1;
-        if (last_output_hdr.loadRelaxed() != (output_is_hdr ? 1 : 0)) {
-            last_output_hdr.storeRelaxed(output_is_hdr ? 1 : 0);
+        // output looks blown out. The guard has to cover the streaming flag as
+        // well: render() already runs while the main menu is on screen, i.e.
+        // before any session log exists, so a guard on the colour-space state
+        // alone is consumed by that first pre-session frame and never reports
+        // the state the session actually ran with.
+        const int output_state = (output_is_hdr ? 1 : 0) | (streaming ? 2 : 0);
+        static QAtomicInteger<int> last_output_state = -1;
+        if (last_output_state.loadRelaxed() != output_state) {
+            last_output_state.storeRelaxed(output_state);
             qCInfo(chiakiGui) << "Swapchain output colour space:"
                               << (output_is_hdr ? "HDR10 (PQ/BT.2020)" : "SDR (sRGB)")
                               << "streaming=" << streaming;
