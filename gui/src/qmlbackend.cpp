@@ -48,17 +48,21 @@ static inline bool frame_has_planes(const AVFrame *frame)
     return frame->data[0] && planes > 0;
 }
 
-static bool frame_can_use_direct_render(const AVFrame *frame, bool use_opengl_renderer)
+static bool frame_can_use_direct_render(const AVFrame *frame, int renderer_backend)
 {
     if (!frame || !frame->hw_frames_ctx)
         return true;
 
     switch (frame->format) {
     case AV_PIX_FMT_VULKAN:
-        return true;
+        return renderer_backend == static_cast<int>(RenderBackend::Vulkan);
 #ifdef Q_OS_LINUX
     case AV_PIX_FMT_VAAPI:
-        return !use_opengl_renderer;
+        return renderer_backend != static_cast<int>(RenderBackend::OpenGL);
+#endif
+#if defined(Q_OS_WIN)
+    case AV_PIX_FMT_D3D11:
+        return renderer_backend == static_cast<int>(RenderBackend::D3D11);
 #endif
     default:
         return false;
@@ -272,7 +276,7 @@ QmlBackend::QmlBackend(Settings *settings, QmlMainWindow *window)
     refreshPsnToken();
 }
 
-bool QmlBackend::prepareFrameForPresentation(ChiakiFfmpegFrame &frame, bool use_opengl_renderer)
+bool QmlBackend::prepareFrameForPresentation(ChiakiFfmpegFrame &frame, int renderer_backend)
 {
     if (!frame.frame)
         return false;
@@ -283,7 +287,7 @@ bool QmlBackend::prepareFrameForPresentation(ChiakiFfmpegFrame &frame, bool use_
     if (!frame.frame->hw_frames_ctx)
         return frame_has_planes(frame.frame);
 
-    const bool direct_render = !disable_zero_copy && frame_can_use_direct_render(frame.frame, use_opengl_renderer);
+    const bool direct_render = !disable_zero_copy && frame_can_use_direct_render(frame.frame, renderer_backend);
     if (direct_render)
         return frame_has_planes(frame.frame);
 
@@ -787,52 +791,48 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
                           << "is not currently available, falling back to auto";
         session_info.hw_decoder = "auto";
     }
-    bool use_opengl_renderer = window && window->runtimeRendererBackend() == static_cast<int>(RenderBackend::OpenGL);
+    const int renderer_backend = window ? window->runtimeRendererBackend() : static_cast<int>(RenderBackend::Vulkan);
+    const bool use_opengl_renderer = renderer_backend == static_cast<int>(RenderBackend::OpenGL);
+    const bool use_vulkan_renderer = renderer_backend == static_cast<int>(RenderBackend::Vulkan);
     bool prefer_cuda = window && window->nvidiaCard() && availableDecoders.contains("cuda");
-    auto fallbackVulkanDecoderForOpenGL = [&]() {
-        if (!use_opengl_renderer || session_info.hw_decoder != "vulkan")
+    auto fallbackVulkanDecoder = [&]() {
+        if (use_vulkan_renderer || session_info.hw_decoder != "vulkan")
             return;
 
         bool fallbackApplied = false;
 #if defined(Q_OS_LINUX)
         if (prefer_cuda)
         {
-            qCInfo(chiakiGui) << "Renderer backend is OpenGL, falling back from vulkan decoder to cuda";
+            qCInfo(chiakiGui) << "Renderer backend is not Vulkan, falling back from vulkan decoder to cuda";
             session_info.hw_decoder = "cuda";
             fallbackApplied = true;
         }
         else
         if (availableDecoders.contains("vaapi"))
         {
-            qCInfo(chiakiGui) << "Renderer backend is OpenGL, falling back from vulkan decoder to vaapi";
+            qCInfo(chiakiGui) << "Renderer backend is not Vulkan, falling back from vulkan decoder to vaapi";
             session_info.hw_decoder = "vaapi";
             fallbackApplied = true;
         }
 #elif defined(Q_OS_WIN)
-        if (prefer_cuda)
-        {
-            qCInfo(chiakiGui) << "Renderer backend is OpenGL, falling back from vulkan decoder to cuda";
-            session_info.hw_decoder = "cuda";
-            fallbackApplied = true;
-        }
-        else
+        Q_UNUSED(prefer_cuda);
         if (availableDecoders.contains("d3d11va"))
         {
-            qCInfo(chiakiGui) << "Renderer backend is OpenGL, falling back from vulkan decoder to d3d11va";
+            qCInfo(chiakiGui) << "Renderer backend is not Vulkan, falling back from vulkan decoder to d3d11va";
             session_info.hw_decoder = "d3d11va";
             fallbackApplied = true;
         }
 #elif defined(Q_OS_MACOS)
         if (availableDecoders.contains("videotoolbox"))
         {
-            qCInfo(chiakiGui) << "Renderer backend is OpenGL, falling back from vulkan decoder to videotoolbox";
+            qCInfo(chiakiGui) << "Renderer backend is not Vulkan, falling back from vulkan decoder to videotoolbox";
             session_info.hw_decoder = "videotoolbox";
             fallbackApplied = true;
         }
 #endif
         if (!fallbackApplied)
         {
-            qCInfo(chiakiGui) << "Renderer backend is OpenGL, falling back from vulkan decoder to software decoder";
+            qCInfo(chiakiGui) << "Renderer backend is not Vulkan, falling back from vulkan decoder to software decoder";
             session_info.hw_decoder.clear();
         }
     };
@@ -840,7 +840,7 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
     {
         session_info.hw_decoder = QString();
 #if defined(Q_OS_LINUX)
-        if(!use_opengl_renderer && availableDecoders.contains("vulkan"))
+        if(use_vulkan_renderer && availableDecoders.contains("vulkan"))
         {
             qCInfo(chiakiGui) << "Auto hw decoder selecting vulkan";
             session_info.hw_decoder = "vulkan";
@@ -856,10 +856,17 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
             session_info.hw_decoder = "vaapi";
         }
 #elif defined(Q_OS_WIN)
-        if(!use_opengl_renderer && availableDecoders.contains("vulkan"))
+        // On the D3D11 renderer, d3d11va is the only decoder that can be
+        // mapped zero-copy into libplacebo, so prefer it over cuda.
+        if(use_vulkan_renderer && availableDecoders.contains("vulkan"))
         {
             qCInfo(chiakiGui) << "Auto hw decoder selecting vulkan";
             session_info.hw_decoder = "vulkan";
+        }
+        else if(renderer_backend == static_cast<int>(RenderBackend::D3D11) && availableDecoders.contains("d3d11va"))
+        {
+            qCInfo(chiakiGui) << "Auto hw decoder selecting d3d11va";
+            session_info.hw_decoder = "d3d11va";
         }
         else if(prefer_cuda)
         {
@@ -879,7 +886,7 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
         }
 #endif
     }
-    fallbackVulkanDecoderForOpenGL();
+    fallbackVulkanDecoder();
     if (session_info.hw_decoder == "vulkan") {
 #if defined(Q_OS_LINUX)
         if(qEnvironmentVariableIsSet("APPIMAGE") && (qEnvironmentVariableIsSet("SteamDeck") || qEnvironmentVariable("DESKTOP_SESSION").contains("steamos")))
@@ -925,6 +932,17 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
         }
 #endif
     }
+#if defined(Q_OS_WIN)
+    else if (session_info.hw_decoder == "d3d11va" &&
+             renderer_backend == static_cast<int>(RenderBackend::D3D11)) {
+        // Share libplacebo's D3D11 device with the decoder so frames can be
+        // mapped zero-copy; if unavailable, ffmpeg creates its own device and
+        // frames fall back to the software transfer path.
+        session_info.hw_device_ctx = window->d3d11HwDeviceCtx();
+        if (!session_info.hw_device_ctx)
+            qCInfo(chiakiGui) << "D3D11 zero-copy decode unavailable, decoding with a standalone d3d11 device";
+    }
+#endif
 
     try {
         session = new StreamSession(session_info, this);
@@ -933,7 +951,7 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
         return;
     }
 
-    connect(session, &StreamSession::FfmpegFrameAvailable, frame_thread->parent(), [this, use_opengl_renderer]() {
+    connect(session, &StreamSession::FfmpegFrameAvailable, frame_thread->parent(), [this, renderer_backend]() {
         ChiakiFfmpegDecoder *decoder = session->GetFfmpegDecoder();
         if (!decoder) {
             qCCritical(chiakiGui) << "Session has no FFmpeg decoder";
@@ -946,7 +964,7 @@ void QmlBackend::createSession(const StreamSessionConnectInfo &connect_info)
         if (frame.recovered)
             pending_recovered_frame.storeRelaxed(1);
 
-        if (!prepareFrameForPresentation(frame, use_opengl_renderer))
+        if (!prepareFrameForPresentation(frame, renderer_backend))
         {
             av_frame_free(&frame.frame);
             return;

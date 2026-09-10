@@ -170,7 +170,7 @@ public:
     void setIsAppActive();
 
     void profileChanged();
-    bool prepareFrameForPresentation(ChiakiFfmpegFrame &frame, bool use_opengl_renderer);
+    bool prepareFrameForPresentation(ChiakiFfmpegFrame &frame, int renderer_backend);
 
     void goToSleep();
 

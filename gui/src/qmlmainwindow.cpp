@@ -46,6 +46,10 @@ extern "C" {
 #if defined(Q_OS_MACOS)
 #include <objc/message.h>
 #endif
+#if defined(Q_OS_WIN)
+#include <d3d11.h>
+#include <d3d11_4.h>
+#endif
 
 Q_LOGGING_CATEGORY(chiakiGui, "chiaki.gui", QtInfoMsg);
 
@@ -117,12 +121,96 @@ static QString graphicsApiName(QSGRendererInterface::GraphicsApi api)
     return QStringLiteral("unknown(%1)").arg(int(api));
 }
 
+#if defined(Q_OS_WIN)
+// Zero-copy mapping of a d3d11va-decoded AVFrame into a pl_frame. The decoded
+// frame is a NV12/P010 texture array (one slice per frame); each plane is
+// exposed through a typed shader-resource view of that slice, which
+// pl_d3d11_wrap creates from the DXGI video-view format we pass in.
+static bool map_d3d11_frame(pl_gpu gpu, struct pl_frame *out, AVFrame *frame)
+{
+    pl_d3d11 d3d11 = pl_d3d11_get(gpu);
+    if (!d3d11 || !frame->hw_frames_ctx)
+        return false;
+
+    auto *texture = reinterpret_cast<ID3D11Texture2D *>(frame->data[0]);
+    const auto slice = static_cast<int>(reinterpret_cast<intptr_t>(frame->data[1]));
+    if (!texture)
+        return false;
+
+    auto *hwfc = reinterpret_cast<AVHWFramesContext *>(frame->hw_frames_ctx->data);
+    DXGI_FORMAT luma_fmt;
+    DXGI_FORMAT chroma_fmt;
+    if (hwfc->sw_format == AV_PIX_FMT_NV12) {
+        luma_fmt = DXGI_FORMAT_R8_UNORM;
+        chroma_fmt = DXGI_FORMAT_R8G8_UNORM;
+    } else if (hwfc->sw_format == AV_PIX_FMT_P010) {
+        luma_fmt = DXGI_FORMAT_R16_UNORM;
+        chroma_fmt = DXGI_FORMAT_R16G16_UNORM;
+    } else {
+        qCWarning(chiakiGui) << "Unsupported D3D11 frame sw_format for zero-copy mapping";
+        return false;
+    }
+
+    // Fills metadata, repr, color, crop, plane counts and component mappings
+    // (it handles hwaccel frames by reading hwfc->sw_format); we only need to
+    // attach the wrapped plane textures afterwards.
+    pl_frame_from_avframe(out, frame);
+
+    const int chroma_w = AV_CEIL_RSHIFT(hwfc->width, 1);
+    const int chroma_h = AV_CEIL_RSHIFT(hwfc->height, 1);
+    struct pl_d3d11_wrap_params wrap_params = {};
+    wrap_params.tex = texture;
+    wrap_params.array_slice = slice;
+    wrap_params.fmt = luma_fmt;
+    wrap_params.w = hwfc->width;
+    wrap_params.h = hwfc->height;
+    out->planes[0].texture = pl_d3d11_wrap(gpu, &wrap_params);
+    wrap_params.fmt = chroma_fmt;
+    wrap_params.w = chroma_w;
+    wrap_params.h = chroma_h;
+    out->planes[1].texture = pl_d3d11_wrap(gpu, &wrap_params);
+    if (!out->planes[0].texture || !out->planes[1].texture) {
+        qCWarning(chiakiGui) << "Failed to wrap D3D11 decoded texture planes";
+        pl_tex_destroy(gpu, &out->planes[0].texture);
+        pl_tex_destroy(gpu, &out->planes[1].texture);
+        return false;
+    }
+
+    // Mirror libplacebo's hwaccel mapping (pl_map_hwframe_bit_encoding +
+    // pl_fix_hwframe_sample_depth): sample/color depth and bit shift come from
+    // the sw_format descriptor (P010 = 10-bit payload shifted into 16 bits).
+    {
+        const AVPixFmtDescriptor *sw_desc = av_pix_fmt_desc_get(hwfc->sw_format);
+        out->repr.bits.sample_depth = sw_desc->comp[0].depth + sw_desc->comp[0].shift;
+        out->repr.bits.color_depth = sw_desc->comp[0].depth;
+        out->repr.bits.bit_shift = sw_desc->comp[0].shift;
+        out->repr.bits.sample_depth = out->planes[0].texture->params.format->component_depth[0];
+    }
+    return true;
+}
+#endif
+
 static bool map_frame(pl_gpu gpu, pl_tex *tex,
                       const struct pl_source_frame *src,
                       struct pl_frame *out_frame)
 {
     AVFrame *frame = reinterpret_cast<AVFrame *>(src->frame_data);
     QmlMainWindow *q = reinterpret_cast<QmlMainWindow *>(frame->opaque);
+
+#if defined(Q_OS_WIN)
+    if (frame->format == AV_PIX_FMT_D3D11 && frame->hw_frames_ctx &&
+        q->runtimeRendererBackend() == static_cast<int>(RenderBackend::D3D11)) {
+        if (map_d3d11_frame(gpu, out_frame, frame))
+            return true;
+        if (q->getBackend() && q->getBackend()->zeroCopy()) {
+            qCInfo(chiakiGui) << "D3D11 zero-copy mapping failed, trying without zero copy!";
+            q->getBackend()->disableZeroCopy();
+        }
+        av_frame_free(&frame);
+        return false;
+    }
+#endif
+
     pl_avframe_params av_params{
         .frame      = frame,
         .tex        = tex,};
@@ -152,6 +240,18 @@ static bool map_frame(pl_gpu gpu, pl_tex *tex,
 static void unmap_frame(pl_gpu gpu, struct pl_frame *frame,
                         const struct pl_source_frame *src)
 {
+#if defined(Q_OS_WIN)
+    AVFrame *av_frame_check = reinterpret_cast<AVFrame *>(src->frame_data);
+    if (av_frame_check && av_frame_check->format == AV_PIX_FMT_D3D11 &&
+        av_frame_check->hw_frames_ctx) {
+        // Manually mapped D3D11 frame: destroy the wrapped plane textures,
+        // then hand the AVFrame reference back (no pl_unmap_avframe state).
+        for (int i = 0; i < frame->num_planes && i < 4; i++)
+            pl_tex_destroy(gpu, &frame->planes[i].texture);
+        av_frame_free(&av_frame_check);
+        return;
+    }
+#endif
     pl_unmap_avframe(gpu, frame);
     AVFrame *av_frame = reinterpret_cast<AVFrame *>(src->frame_data);
     av_frame_free(&av_frame);
@@ -318,6 +418,10 @@ pl_gpu QmlMainWindow::placeboGpu() const
         return placebo_vulkan->gpu;
     if (placebo_opengl)
         return placebo_opengl->gpu;
+#if defined(Q_OS_WIN)
+    if (placebo_d3d11)
+        return placebo_d3d11->gpu;
+#endif
     return nullptr;
 }
 
@@ -464,7 +568,19 @@ QmlMainWindow::~QmlMainWindow()
     if (render_backend == RenderBackend::Vulkan) {
         pl_vulkan_destroy(&placebo_vulkan);
         pl_vk_inst_destroy(&placebo_vk_inst);
-    } else {
+    }
+#if defined(Q_OS_WIN)
+    else if (render_backend == RenderBackend::D3D11) {
+        if (d3d11_hw_dev_ctx)
+            av_buffer_unref(&d3d11_hw_dev_ctx);
+        pl_d3d11_destroy(&placebo_d3d11);
+        if (d3d11_immediate_ctx) {
+            d3d11_immediate_ctx->Release();
+            d3d11_immediate_ctx = nullptr;
+        }
+    }
+#endif
+    else {
         pl_opengl_destroy(&placebo_opengl);
     }
     delete qt_vk_inst;
@@ -1559,6 +1675,67 @@ AVBufferRef *QmlMainWindow::vulkanHwDeviceCtx()
     return vulkan_hw_dev_ctx;
 }
 
+#if defined(Q_OS_WIN)
+// Shared-device serialization between the ffmpeg d3d11va decode thread and the
+// libplacebo render thread. ffmpeg requires these callbacks on a user-provided
+// D3D11 device; a plain mutex is sufficient (the device also has
+// ID3D11Multithread protection enabled).
+static QMutex *d3d11_decode_mutex()
+{
+    static QMutex mutex;
+    return &mutex;
+}
+
+static void d3d11_device_lock(void *log_ctx)
+{
+    Q_UNUSED(log_ctx);
+    d3d11_decode_mutex()->lock();
+}
+
+static void d3d11_device_unlock(void *log_ctx)
+{
+    Q_UNUSED(log_ctx);
+    d3d11_decode_mutex()->unlock();
+}
+#endif
+
+AVBufferRef *QmlMainWindow::d3d11HwDeviceCtx()
+{
+#if defined(Q_OS_WIN)
+    if (render_backend != RenderBackend::D3D11 || !placebo_d3d11 || !d3d11_immediate_ctx)
+        return nullptr;
+
+    if (d3d11_hw_dev_ctx)
+        return d3d11_hw_dev_ctx;
+
+    d3d11_hw_dev_ctx = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA);
+    if (!d3d11_hw_dev_ctx)
+        return nullptr;
+
+    auto *hwctx = reinterpret_cast<AVHWDeviceContext *>(d3d11_hw_dev_ctx->data);
+    auto *d3d11ctx = reinterpret_cast<AVD3D11VADeviceContext *>(hwctx->hwctx);
+    // Share libplacebo's device so decoded textures can be wrapped zero-copy
+    // via pl_d3d11_wrap. We pass owned references (AddRef'd): ffmpeg's
+    // hwcontext dealloc always releases device/device_context, whether
+    // user-allocated or not, so ownership transfers to the AVHWDeviceContext.
+    d3d11ctx->device = placebo_d3d11->device;
+    d3d11ctx->device->AddRef();
+    d3d11ctx->device_context = d3d11_immediate_ctx;
+    d3d11ctx->device_context->AddRef();
+    d3d11ctx->lock = d3d11_device_lock;
+    d3d11ctx->unlock = d3d11_device_unlock;
+    d3d11ctx->lock_ctx = nullptr;
+    if (av_hwdevice_ctx_init(d3d11_hw_dev_ctx) < 0) {
+        qCWarning(chiakiGui) << "Failed to create D3D11 decode context";
+        av_buffer_unref(&d3d11_hw_dev_ctx);
+    }
+
+    return d3d11_hw_dev_ctx;
+#else
+    return nullptr;
+#endif
+}
+
 bool QmlMainWindow::makeOpenGLContextCurrent()
 {
     if (!qt_gl_context)
@@ -1606,7 +1783,11 @@ void QmlMainWindow::doneOpenGLContextCurrent()
 void QmlMainWindow::init(Settings *settings, bool exit_app_on_stream_exit)
 {
     render_backend = settings->GetRenderBackend();
+#if defined(Q_OS_WIN)
+    setSurfaceType(render_backend == RenderBackend::Vulkan ? QWindow::VulkanSurface : QWindow::RasterSurface);
+#else
     setSurfaceType(render_backend == RenderBackend::Vulkan ? QWindow::VulkanSurface : QWindow::OpenGLSurface);
+#endif
     qparams = {};
     qparams.drift_compensation = 1e-3;
     qparams.interpolation_threshold = 0.01;
@@ -1833,7 +2014,32 @@ void QmlMainWindow::init(Settings *settings, bool exit_app_on_stream_exit)
         }
 vulkan_setup_done:
         ;
-    } else {
+    }
+#if defined(Q_OS_WIN)
+    else if (render_backend == RenderBackend::D3D11) {
+        struct pl_d3d11_params d3d11_params = {
+            .allow_software = true,
+        };
+        placebo_d3d11 = pl_d3d11_create(placebo_log, &d3d11_params);
+        if (placebo_d3d11)
+            placebo_d3d11->device->GetImmediateContext(&d3d11_immediate_ctx);
+        if (!placebo_d3d11 || !d3d11_immediate_ctx) {
+            fallbackToOpenGL(QStringLiteral("Failed to initialize D3D11 device"));
+        } else {
+            // Qt Quick (RHI D3D11) and the ffmpeg d3d11va decoder share this
+            // device with libplacebo across multiple threads; enable
+            // driver-level serialization of context usage.
+            ID3D11Multithread *multithread = nullptr;
+            if (SUCCEEDED(d3d11_immediate_ctx->QueryInterface(IID_ID3D11Multithread,
+                                                              reinterpret_cast<void **>(&multithread)))) {
+                multithread->SetMultithreadProtected(TRUE);
+                multithread->Release();
+            }
+            qCInfo(chiakiGui) << "Using D3D11 renderer backend";
+        }
+    }
+#endif
+    else {
         if (!initOpenGLBackend())
             qFatal("Failed initializing OpenGL backend");
     }
@@ -1878,12 +2084,26 @@ renderer_backend_ready:
     quick_render = new RenderControl(this);
 
     QQuickWindow::setDefaultAlphaBuffer(true);
+#if defined(Q_OS_WIN)
+    QQuickWindow::setGraphicsApi(render_backend == RenderBackend::Vulkan ? QSGRendererInterface::Vulkan
+        : render_backend == RenderBackend::D3D11 ? QSGRendererInterface::Direct3D11
+        : QSGRendererInterface::OpenGL);
+#else
     QQuickWindow::setGraphicsApi(render_backend == RenderBackend::Vulkan ? QSGRendererInterface::Vulkan : QSGRendererInterface::OpenGL);
+#endif
     quick_window = new QQuickWindow(quick_render);
     if (render_backend == RenderBackend::Vulkan) {
         quick_window->setVulkanInstance(qt_vk_inst);
         quick_window->setGraphicsDevice(QQuickGraphicsDevice::fromDeviceObjects(placebo_vulkan->phys_device, placebo_vulkan->device, placebo_vulkan->queue_graphics.index));
-    } else {
+    }
+#if defined(Q_OS_WIN)
+    else if (render_backend == RenderBackend::D3D11) {
+        // Qt Quick renders into our D3D11 texture using the same device as
+        // libplacebo — zero-copy overlay compositing.
+        quick_window->setGraphicsDevice(QQuickGraphicsDevice::fromDeviceAndContext(placebo_d3d11->device, d3d11_immediate_ctx));
+    }
+#endif
+    else {
         quick_window->setGraphicsDevice(QQuickGraphicsDevice::fromOpenGLContext(qt_gl_context));
     }
     quick_window->setColor(QColor(0, 0, 0, 0));
@@ -2286,6 +2506,23 @@ void QmlMainWindow::createSwapchain()
         return;
     }
 
+#if defined(Q_OS_WIN)
+    if (render_backend == RenderBackend::D3D11) {
+        if (!this->handle())
+            this->create();
+        struct pl_d3d11_swapchain_params sw_params = {
+            .window = reinterpret_cast<HWND>(winId()),
+        };
+        // libplacebo's D3D11 swapchain presents with SyncInterval=1 (VSync);
+        // the setting only takes effect on the Vulkan/OpenGL backends.
+        present_vsync_enabled = true;
+        placebo_swapchain = pl_d3d11_create_swapchain(placebo_d3d11, &sw_params);
+        if (!placebo_swapchain)
+            qCCritical(chiakiGui) << "Failed creating D3D11 swapchain";
+        return;
+    }
+#endif
+
     VkResult err = VK_ERROR_UNKNOWN;
 #if defined(Q_OS_LINUX)
     if (QGuiApplication::platformName().startsWith("wayland")) {
@@ -2384,9 +2621,14 @@ void QmlMainWindow::resizeSwapchain()
     // Visibility for VRAM-sprawl diagnosis: every rebuild orphans a size
     // generation in libplacebo's never-shrinking slab pool. Log it so drag
     // sessions show rebuild counts directly.
+    const char *backend_name = render_backend == RenderBackend::Vulkan ? "vulkan"
+#if defined(Q_OS_WIN)
+        : render_backend == RenderBackend::D3D11 ? "d3d11"
+#endif
+        : "opengl";
     qCInfo(chiakiGui) << "Resizing swapchain"
                       << swapchain_size << "->" << window_size
-                      << (render_backend == RenderBackend::Vulkan ? "vulkan" : "opengl");
+                      << backend_name;
 
     QSize new_swapchain_size = window_size;
     pl_swapchain_resize(placebo_swapchain, &new_swapchain_size.rwidth(), &new_swapchain_size.rheight());
@@ -2439,6 +2681,56 @@ void QmlMainWindow::resizeSwapchain()
         swapchain_resize_pending.storeRelease(0);
         return;
     }
+
+#if defined(Q_OS_WIN)
+    if (render_backend == RenderBackend::D3D11) {
+        // Mirror the OpenGL architecture: we own the D3D11 texture, Qt Quick
+        // renders into it, and it is wrapped as a pl_tex overlay for
+        // libplacebo. Swap the render target first so Qt stops drawing into
+        // the texture before it is released.
+        quick_window->setRenderTarget(QQuickRenderTarget());
+        pl_tex_destroy(placeboGpu(), &quick_tex);
+
+        D3D11_TEXTURE2D_DESC tex_desc = {};
+        tex_desc.Width = new_swapchain_size.width();
+        tex_desc.Height = new_swapchain_size.height();
+        tex_desc.MipLevels = 1;
+        tex_desc.ArraySize = 1;
+        tex_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        tex_desc.SampleDesc.Count = 1;
+        tex_desc.Usage = D3D11_USAGE_DEFAULT;
+        tex_desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+        ID3D11Texture2D *new_d3d11_tex = nullptr;
+        HRESULT hr = placebo_d3d11->device->CreateTexture2D(&tex_desc, nullptr, &new_d3d11_tex);
+        if (FAILED(hr) || !new_d3d11_tex) {
+            qCCritical(chiakiGui) << "Failed to create Qt Quick D3D11 render target texture"
+                                  << QString::number(hr, 16);
+            swapchain_resize_pending.storeRelease(0);
+            return;
+        }
+
+        struct pl_d3d11_wrap_params wrap_params = {
+            .tex = new_d3d11_tex,
+        };
+        pl_tex new_quick_tex = pl_d3d11_wrap(placeboGpu(), &wrap_params);
+        if (!new_quick_tex) {
+            qCCritical(chiakiGui) << "Failed to wrap Qt Quick D3D11 render target texture";
+            new_d3d11_tex->Release();
+            swapchain_resize_pending.storeRelease(0);
+            return;
+        }
+        // pl_d3d11_wrap holds its own reference; hand our reference to Qt
+        // (fromD3D11Texture takes its own reference as well).
+        quick_tex = new_quick_tex;
+        swapchain_size = new_swapchain_size;
+        last_swap_w.storeRelaxed(new_swapchain_size.width());
+        last_swap_h.storeRelaxed(new_swapchain_size.height());
+        quick_window->setRenderTarget(QQuickRenderTarget::fromD3D11Texture(new_d3d11_tex, new_swapchain_size));
+        new_d3d11_tex->Release();
+        swapchain_resize_pending.storeRelease(0);
+        return;
+    }
+#endif
 
     struct pl_tex_params tex_params = {
         .w = new_swapchain_size.width(),
@@ -2582,6 +2874,11 @@ void QmlMainWindow::endFrame()
     quick_frame = false;
     quick_render->endFrame();
 
+#if defined(Q_OS_WIN)
+    if (render_backend == RenderBackend::D3D11)
+        return;
+#endif
+
     struct pl_vulkan_release_params release_params = {
         .tex = quick_tex,
         .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -2684,6 +2981,9 @@ void QmlMainWindow::render()
             QMap<QString, QString> paramsData = settings->GetPlaceboValues();
             QMapIterator<QString, QString> i(paramsData);
             bool invalid_render_params = false;
+            // 交接点清单：注册表库存不等于实际生效（解析失败的键会静默回基座默认，
+            // 挂自定义 hook 时 upscaler/plane_upscaler 会被跳过）。记全量以便定位毒参数。
+            QStringList applied_params, skipped_params, failed_params;
             {
                 QMutexLocker locker(&placebo_state_mutex);
                 this->renderparams_opts->params = pl_render_default_params;
@@ -2694,12 +2994,16 @@ void QmlMainWindow::render()
                     i.next();
                     if ((i.key() == QLatin1String("upscaler") || i.key() == QLatin1String("plane_upscaler"))
                         && uses_custom_upscale_hook(configured_upscaler)) {
+                        skipped_params << QStringLiteral("%1=%2").arg(i.key(), i.value());
                         continue;
                     }
                     if(!pl_options_set_str(this->renderparams_opts, i.key().toUtf8().constData(), i.value().toUtf8().constData()))
                     {
                         invalid_render_params = true;
+                        failed_params << QStringLiteral("%1=%2").arg(i.key(), i.value());
                         qCCritical(chiakiGui) << "Failed to load custom render param: " << i.key() << " with value: " << i.value();
+                    } else {
+                        applied_params << QStringLiteral("%1=%2").arg(i.key(), i.value());
                     }
                 }
             }
@@ -2707,6 +3011,12 @@ void QmlMainWindow::render()
                 qCInfo(chiakiGui) << "Updated custom render parameters with one or more invalid parameters.";
             else
                 qCInfo(chiakiGui) << "Updated custom render parameters successfully.";
+            // 基座固定为 pl_render_default_params（HQ 预设用的是 high_quality 结构体且不读仓库，
+            // 两者不可直接对比）。applied 与注册表导出的差集即失效/跳过键。
+            qCInfo(chiakiGui) << "Custom render params base=pl_render_default_params"
+                              << "applied={" << applied_params.join(QLatin1String("; ")) << "}"
+                              << "skipped={" << skipped_params.join(QLatin1String("; ")) << "}"
+                              << "failed={" << failed_params.join(QLatin1String("; ")) << "}";
         }
         render_params = &(this->renderparams_opts->params);
         break;

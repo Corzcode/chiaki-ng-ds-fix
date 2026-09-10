@@ -597,6 +597,9 @@ void Settings::SetPlaceboPreset(PlaceboPreset preset)
 static const QMap<RenderBackend, QString> render_backend_values = {
 	{ RenderBackend::Vulkan, "vulkan" },
 	{ RenderBackend::OpenGL, "opengl" },
+#if defined(Q_OS_WIN)
+	{ RenderBackend::D3D11, "d3d11" },
+#endif
 };
 
 #if defined(Q_OS_MACOS) && QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
@@ -616,6 +619,14 @@ RenderBackend Settings::GetRenderBackend() const
 	if (backend == RenderBackend::Vulkan) {
 		qWarning() << "Forcing OpenGL backend on macOS (Vulkan unavailable because of Qt 6.10 MoltenVK bug)";
 		return RenderBackend::OpenGL;
+	}
+#endif
+
+#if !defined(Q_OS_WIN)
+	// D3D11 is only available on Windows
+	if (backend == RenderBackend::D3D11) {
+		qWarning() << "D3D11 renderer backend is only available on Windows, falling back to Vulkan";
+		return RenderBackend::Vulkan;
 	}
 #endif
 

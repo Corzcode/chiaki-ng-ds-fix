@@ -741,11 +741,15 @@ int QmlSettings::rendererBackend() const
 
 void QmlSettings::setRendererBackend(int backend)
 {
-    if (backend < static_cast<int>(RenderBackend::Vulkan) ||
-        backend > static_cast<int>(RenderBackend::OpenGL)) {
-        qWarning() << "Ignoring invalid renderer backend value:" << backend;
-        return;
-    }
+#if defined(Q_OS_WIN)
+	const int max_backend = static_cast<int>(RenderBackend::D3D11);
+#else
+	const int max_backend = static_cast<int>(RenderBackend::OpenGL);
+#endif
+	if (backend < static_cast<int>(RenderBackend::Vulkan) || backend > max_backend) {
+		qWarning() << "Ignoring invalid renderer backend value:" << backend;
+		return;
+	}
 
     auto next_backend = static_cast<RenderBackend>(backend);
     if (settings->GetRenderBackend() == next_backend)

@@ -79,7 +79,10 @@ enum class PlaceboPreset {
 
 enum class RenderBackend {
 	Vulkan,
-	OpenGL
+	OpenGL,
+#if defined(Q_OS_WIN)
+	D3D11
+#endif
 };
 
 enum class WindowType {

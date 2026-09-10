@@ -12,6 +12,10 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/hwcontext_vulkan.h>
+#if defined(Q_OS_WIN)
+#include <libavutil/hwcontext_d3d11va.h>
+#include <libplacebo/d3d11.h>
+#endif
 #include <libplacebo/opengl.h>
 #include <libplacebo/options.h>
 #include <libplacebo/vulkan.h>
@@ -138,6 +142,7 @@ public slots:
     void presentFrame(ChiakiFfmpegFrame frame, int32_t frames_lost);
 
     AVBufferRef *vulkanHwDeviceCtx();
+    AVBufferRef *d3d11HwDeviceCtx();
 
 signals:
     void hasVideoChanged();
@@ -223,6 +228,9 @@ private:
     GpuEngineMonitor *gpu_engine_monitor = {};
     QAtomicInteger<quint64> pending_overflow_evict_total = 0;
     AVBufferRef *vulkan_hw_dev_ctx = nullptr;
+#if defined(Q_OS_WIN)
+    AVBufferRef *d3d11_hw_dev_ctx = nullptr;
+#endif
     double queue_depth_average = 0.0;
     double current_video_fps = 0.0;
     double pending_frame_age = 0.0;
@@ -236,6 +244,9 @@ private:
     pl_vk_inst placebo_vk_inst = {};
     pl_vulkan placebo_vulkan = {};
     pl_opengl placebo_opengl = {};
+#if defined(Q_OS_WIN)
+    pl_d3d11 placebo_d3d11 = {};
+#endif
     pl_swapchain placebo_swapchain = {};
     pl_renderer placebo_renderer = {};
     pl_queue placebo_queue = {};
@@ -287,6 +298,9 @@ private:
     QVulkanInstance *qt_vk_inst = {};
     QOpenGLContext *qt_gl_context = {};
     QOffscreenSurface *qt_gl_offscreen_surface = {};
+#if defined(Q_OS_WIN)
+    ID3D11DeviceContext *d3d11_immediate_ctx = nullptr;
+#endif
     QQmlEngine *qml_engine = {};
     QQuickWindow *quick_window = {};
     QQuickRenderControl *quick_render = {};

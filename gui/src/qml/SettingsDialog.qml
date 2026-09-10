@@ -1012,8 +1012,11 @@ DialogView {
                     }
 
                     C.ComboBox {
+                        id: rendererBackendCombo
                         Layout.preferredWidth: 400
-                        model: [qsTr("Vulkan"), qsTr("OpenGL")]
+                        model: Qt.platform.os === "windows"
+                               ? [qsTr("Vulkan"), qsTr("OpenGL"), qsTr("Direct3D 11")]
+                               : [qsTr("Vulkan"), qsTr("OpenGL")]
                         currentIndex: Chiaki.settings.rendererBackend
                         onActivated: (index) => {
                             if (index === Chiaki.settings.rendererBackend)
@@ -1025,7 +1028,7 @@ DialogView {
 
                     Label {
                         Layout.alignment: Qt.AlignRight
-                        text: qsTr("(Vulkan)")
+                        text: rendererBackendCombo.currentIndex === 2 ? qsTr("(Direct3D 11)") : qsTr("(Vulkan)")
                     }
 
                     Label {
