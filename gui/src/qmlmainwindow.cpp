@@ -1784,7 +1784,13 @@ void QmlMainWindow::init(Settings *settings, bool exit_app_on_stream_exit)
 {
     render_backend = settings->GetRenderBackend();
 #if defined(Q_OS_WIN)
-    setSurfaceType(render_backend == RenderBackend::Vulkan ? QWindow::VulkanSurface : QWindow::RasterSurface);
+    // Only the D3D11 backend presents through libplacebo's own DXGI swapchain
+    // on the raw HWND (no QWindow surface API involved) — RasterSurface is
+    // fine there. OpenGL still needs a real OpenGLSurface, and Vulkan a
+    // VulkanSurface, otherwise makeCurrent / swapchain creation fail.
+    setSurfaceType(render_backend == RenderBackend::D3D11 ? QWindow::RasterSurface :
+                   render_backend == RenderBackend::Vulkan ? QWindow::VulkanSurface :
+                   QWindow::OpenGLSurface);
 #else
     setSurfaceType(render_backend == RenderBackend::Vulkan ? QWindow::VulkanSurface : QWindow::OpenGLSurface);
 #endif
