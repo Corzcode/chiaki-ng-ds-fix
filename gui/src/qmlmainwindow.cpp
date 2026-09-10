@@ -1049,7 +1049,12 @@ void QmlMainWindow::presentFrame(ChiakiFfmpegFrame frame, int32_t frames_lost)
             snapshotPendingFrame();
         if (frame.frame)
             av_frame_free(&frame.frame);
-        scheduleUpdate();
+        // VSync off = arrival pacing: render on arrival instead of waiting for
+        // the display-paced tick (pre-b0985825 behavior).
+        if (present_vsync_enabled)
+            scheduleUpdate();
+        else
+            update();
         return;
     }
 
@@ -1096,7 +1101,12 @@ void QmlMainWindow::presentFrame(ChiakiFfmpegFrame frame, int32_t frames_lost)
             showCursor();
         emit hasVideoChanged();
     }
-    scheduleUpdate();
+    // VSync off = arrival pacing: render on arrival instead of waiting for
+    // the display-paced tick (pre-b0985825 behavior).
+    if (present_vsync_enabled)
+        scheduleUpdate();
+    else
+        update();
 }
 
 void QmlMainWindow::resetPlaceboQueue()
@@ -2535,26 +2545,34 @@ void QmlMainWindow::scheduleUpdate()
     }
 
     if (!update_timer->isActive()) {
+        if (!present_vsync_enabled) {
+            // VSync off = pre-b0985825 arrival pacing: renders are driven by
+            // frame arrival (presentFrame calls update() directly); this timer
+            // is only a keepalive for overlay/housekeeping, not a present loop.
+            // Display-paced ticking here is what pinned VC0 at 90% on 160Hz
+            // panels (same frame re-rendered ~2.6x per video period).
+            update_timer->start(has_video ? 50 : 10);
+            return;
+        }
         double refresh_rate = screen() ? screen()->refreshRate() : 60.0;
         if (refresh_rate <= 1.0)
             refresh_rate = 60.0;
 
-        // Drain at display refresh while a backlog exists, so the next frame is
-        // consumed before the pipeline saturates and starts overwriting pending
-        // frames (the periodic drops). A backlog means either a pending frame is
-        // waiting to re-enter, or the queue has already grown past a single in-
-        // flight frame. Otherwise pace to the video source so a 60fps stream on
-        // a high-refresh display isn't re-blitted ~2.4x per video period. The
-        // high-frequency window ends the moment the queue is drained below one
-        // pending frame, so it can't self-sustain the "GPU never drops" latch.
+        // Drain at display refresh only while a REAL backlog exists, so the next
+        // frame is consumed before the pipeline saturates and starts
+        // overwriting pending frames (the periodic drops). Real backlog means
+        // a pending frame is waiting to re-enter (queue full, arrivals blocked).
+        // NOTE: "pl_queue_num_frames > 1" must NOT count as backlog: the mixer
+        // keeps ~2 frames resident as its normal operating window, so that test
+        // is true in steady state and latches the loop at display refresh
+        // forever (same frame re-rendered ~2.6x per video period on 160Hz).
+        // Restored 2026-09-10 after driver fix: the earlier revert was driven
+        // by VC0 spikes later confirmed as an AMD driver bug, not by this
+        // definition. Guardrail per dba9dc5f: watch pending_overflow_evict
+        // rate -- the queue still needs overshoot drain on true congestion.
         bool backlog = false;
-        if (has_video) {
+        if (has_video)
             backlog = hasPendingFrame();
-            if (!backlog) {
-                QMutexLocker locker(&placebo_state_mutex);
-                backlog = pl_queue_num_frames(placebo_queue) > 1;
-            }
-        }
 
         int interval_ms;
         if (!has_video) {
@@ -2580,6 +2598,10 @@ void QmlMainWindow::updateVSync()
 {
     if (render_backend != RenderBackend::Vulkan)
         return;
+    qCInfo(chiakiGui) << "Present pacing:"
+                      << (settings && settings->GetVSyncEnabled()
+                          ? "display-paced (vsync on)"
+                          : "arrival-paced (vsync off, pre-b0985825 loop)");
     swapchain_recreate_pending.storeRelaxed(1);
     scheduleUpdate();
 }
@@ -3469,7 +3491,10 @@ void QmlMainWindow::render()
         // PL_QUEUE_MORE (never PL_QUEUE_EOF). Without the session check, a stale
         // has_video would keep this loop presenting at display refresh rate
         // forever after the stream has ended (stuck GPU usage on the main UI).
-        schedule_next_update = ((has_video && stream_session_active.loadAcquire()) && queue_status != PL_QUEUE_EOF)
+        // VSync off = arrival pacing: never self-sustain the loop on has_video
+        // alone (that is the display-paced spin that pinned VC0); new arrivals
+        // re-enter via presentFrame()->update(), other terms are real work.
+        schedule_next_update = (present_vsync_enabled && (has_video && stream_session_active.loadAcquire()) && queue_status != PL_QUEUE_EOF)
             || pending_frame_waiting
             || quick_need_sync.loadRelaxed() != 0
             || quick_need_render.loadRelaxed() != 0
@@ -3614,7 +3639,8 @@ void QmlMainWindow::render()
 
     // Same as the overlay-only branch above: without the session check a stale
     // has_video would keep the render loop spinning after stream teardown.
-    schedule_next_update = ((has_video && stream_session_active.loadAcquire()) && queue_status != PL_QUEUE_EOF)
+    // VSync off: same arrival-pacing gate as above (see overlay branch).
+    schedule_next_update = (present_vsync_enabled && (has_video && stream_session_active.loadAcquire()) && queue_status != PL_QUEUE_EOF)
         || pending_frame_waiting
         || quick_need_sync.loadRelaxed() != 0
         || quick_need_render.loadRelaxed() != 0
