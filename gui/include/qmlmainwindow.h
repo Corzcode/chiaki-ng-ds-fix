@@ -233,13 +233,6 @@ private:
 #endif
     double queue_depth_average = 0.0;
     double current_video_fps = 0.0;
-    // Absolute deadline (monotonic, us) for the next render-loop tick, plus the
-    // period it was computed for. The timer can only be re-armed *after* a
-    // frame's work has finished, so pacing to a bare interval would make the
-    // loop run at (work + interval) and never reach the video cadence. See
-    // QmlMainWindow::scheduleUpdate().
-    uint64_t update_deadline_us = 0;
-    double update_pace_period_us = 0.0;
     double pending_frame_age = 0.0;
     double processing_latency = 0.0;
     uint64_t last_placebo_reset_ts = 0;
