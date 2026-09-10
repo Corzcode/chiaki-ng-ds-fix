@@ -2103,6 +2103,7 @@ void QmlMainWindow::init(Settings *settings, bool exit_app_on_stream_exit)
         });
         if (queue_it != queueFamilyProperties.end())
             vk_decode_queue_index = std::distance(queueFamilyProperties.begin(), queue_it);
+        }
         VkPhysicalDeviceProperties device_props;
         vk_funcs.vkGetPhysicalDeviceProperties(placebo_vulkan->phys_device, &device_props);
         if(device_props.vendorID == 0x1002)
@@ -2310,6 +2311,10 @@ renderer_backend_ready:
 
     update_timer = new QTimer(this);
     update_timer->setSingleShot(true);
+    // The default CoarseTimer is allowed ~5% slack, i.e. up to ~0.8 ms of extra
+    // jitter on a 16.7 ms tick. The pacing deadline absorbs that over time, but
+    // the per-frame spacing is what the eye sees, so ask for the precise timer.
+    update_timer->setTimerType(Qt::PreciseTimer);
     connect(update_timer, &QTimer::timeout, this, &QmlMainWindow::update);
 
     // Opt-in diagnostic monitor for the intermittent vc0/engine-usage spikes.
@@ -2556,17 +2561,51 @@ void QmlMainWindow::scheduleUpdate()
             }
         }
 
-        int interval_ms;
+        double period_us;
         if (!has_video) {
-            interval_ms = 10;
+            period_us = 10000.0;
         } else if (backlog) {
-            interval_ms = qMax(1, (int)(1000.0 / refresh_rate));
+            period_us = 1000000.0 / refresh_rate;
         } else {
             const double video_fps = current_video_fps;
-            interval_ms = video_fps > 0.0
-                ? qMax(1, (int)(1000.0 / qMin(refresh_rate, video_fps)))
-                : qMax(1, (int)(1000.0 / refresh_rate));
+            period_us = 1000000.0 / (video_fps > 0.0
+                ? qMin(refresh_rate, video_fps) : refresh_rate);
         }
+
+        // Pace against an absolute deadline instead of sleeping for a bare
+        // interval. This timer can only be re-armed once the frame's work has
+        // already finished (see the tail of render(): finalize_render() then
+        // scheduleUpdate()), so `start(1000 / video_fps)` produced a real period
+        // of (work + interval) — permanently *below* the source cadence for any
+        // non-zero work time. The source-paced branch could therefore never hold
+        // 60 fps: a backlog would build, the loop would flip to the display-
+        // refresh branch, drain it, and flip straight back. libplacebo's own
+        // "display FPS" estimate (frame_queue.c reports 1/vps, and vps is
+        // estimated from the deltas of qparams.pts, i.e. our tick spacing)
+        // recorded exactly that: a bimodal loop rate sitting at ~57 and ~156 fps
+        // with nothing in between, evicting ~4 frames/s via
+        // pending_overflow_evict and reading as micro-stutter.
+        //
+        // Advancing the deadline by exactly one period makes the elapsed work
+        // time come out of the *next* sleep, so the long-run tick rate stays
+        // pinned to the period however long a frame took. The 1.5x guard
+        // re-syncs after a genuine stall (session start, a long GPU hitch)
+        // instead of firing a burst of catch-up ticks, and a period change
+        // (no-video <-> video, 30 fps <-> 60 fps, backlog flips) re-syncs too.
+        const uint64_t now_us = chiaki_time_now_monotonic_us();
+        if (update_deadline_us == 0 || update_pace_period_us != period_us
+                || now_us > update_deadline_us + (uint64_t)(period_us * 1.5)) {
+            update_deadline_us = now_us + (uint64_t)period_us;
+        } else {
+            update_deadline_us += (uint64_t)period_us;
+        }
+        update_pace_period_us = period_us;
+
+        const uint64_t delay_us = update_deadline_us > now_us
+            ? update_deadline_us - now_us : 0;
+        // Round to nearest ms: the deadline is absolute, so the sub-ms residue
+        // is repaid on the following tick instead of accumulating.
+        const int interval_ms = (int)qMax<uint64_t>(1, (delay_us + 500) / 1000);
         update_timer->start(interval_ms);
     }
 }
