@@ -176,6 +176,27 @@ static bool map_d3d11_frame(pl_gpu gpu, struct pl_frame *out, AVFrame *frame)
         return false;
     }
 
+    // pl_render_image() refuses any source plane whose texture is not
+    // sampleable, so a decoder pool without D3D11_BIND_SHADER_RESOURCE would
+    // otherwise fail every frame with a validation error and leave the window
+    // black. Report it as a mapping failure so the caller falls back to a
+    // non-zero-copy path instead of silently presenting nothing.
+    if (!out->planes[0].texture->params.sampleable || !out->planes[1].texture->params.sampleable) {
+        D3D11_TEXTURE2D_DESC desc = {};
+        texture->GetDesc(&desc);
+        static std::atomic<bool> warned{false};
+        if (!warned.exchange(true)) {
+            qCWarning(chiakiGui) << "D3D11 decoded texture is not sampleable:"
+                                 << desc.Width << "x" << desc.Height
+                                 << "format" << desc.Format
+                                 << "bindFlags" << Qt::hex << desc.BindFlags
+                                 << "- the decoder pool lacks D3D11_BIND_SHADER_RESOURCE";
+        }
+        pl_tex_destroy(gpu, &out->planes[0].texture);
+        pl_tex_destroy(gpu, &out->planes[1].texture);
+        return false;
+    }
+
     // Mirror libplacebo's hwaccel mapping (pl_map_hwframe_bit_encoding +
     // pl_fix_hwframe_sample_depth): sample/color depth and bit shift come from
     // the sw_format descriptor (P010 = 10-bit payload shifted into 16 bits).
