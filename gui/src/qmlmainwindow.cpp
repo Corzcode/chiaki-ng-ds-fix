@@ -2386,7 +2386,10 @@ renderer_backend_ready:
               << QStringLiteral("rc=%1").arg(render_count_total.loadRelaxed())
               << QStringLiteral("sc=%1").arg(sched_count_total.loadRelaxed())
               << QStringLiteral("sb=%1").arg(sched_backlog_count.loadRelaxed())
-              << QStringLiteral("mix=%1").arg(last_mix_frames.loadRelaxed());
+              << QStringLiteral("mix=%1").arg(last_mix_frames.loadRelaxed())
+              << QStringLiteral("qu_us=%1").arg(last_queue_phase_us.loadRelaxed())
+              << QStringLiteral("rm_us=%1").arg(last_render_mix_us.loadRelaxed())
+              << QStringLiteral("inf=%1").arg(last_inflight_frames.loadRelaxed());
         out = parts.join(QLatin1Char(' '));
     });
 
@@ -3214,6 +3217,7 @@ void QmlMainWindow::render()
     enum pl_queue_status queue_status;
     bool replay_attempted = false;
     bool replay_enqueued = false;
+    const uint64_t qu_t0 = chiaki_time_now_monotonic_us();
     {
         QMutexLocker locker(&placebo_state_mutex);
         queue_status = pl_queue_update(placebo_queue, &frame_mix, &qparams);
@@ -3247,6 +3251,8 @@ void QmlMainWindow::render()
         {
             QMutexLocker locker(&placebo_state_mutex);
             queue_status = pl_queue_update(placebo_queue, &frame_mix, &qparams);
+            last_inflight_frames.storeRelaxed(pl_queue_num_frames(placebo_queue) + (hasPendingFrame() ? 1 : 0));
+            last_queue_phase_us.storeRelaxed(static_cast<int>(chiaki_time_now_monotonic_us() - qu_t0));
         }
         switch (queue_status) {
         case PL_QUEUE_ERR:
@@ -3636,6 +3642,7 @@ void QmlMainWindow::render()
         }
     }
 
+    const uint64_t rm_t0 = chiaki_time_now_monotonic_us();
     if (!pl_render_image_mix(placebo_renderer, &frame_mix, &target_frame, &params))
     {
         qCWarning(chiakiGui) << "Failed to render Placebo frame!";
@@ -3644,6 +3651,7 @@ void QmlMainWindow::render()
         return;
     }
 
+    last_render_mix_us.storeRelaxed(static_cast<int>(chiaki_time_now_monotonic_us() - rm_t0));
     close_started_frame(true);
 
     // Same as the overlay-only branch above: without the session check a stale

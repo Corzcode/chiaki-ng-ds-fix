@@ -340,6 +340,9 @@ private:
     QAtomicInteger<quint64> sched_count_total = 0;
     QAtomicInteger<quint64> sched_backlog_count = 0;
     QAtomicInteger<int> last_mix_frames = 0;
+    QAtomicInteger<int> last_queue_phase_us = 0;
+    QAtomicInteger<int> last_render_mix_us = 0;
+    QAtomicInteger<int> last_inflight_frames = 0;
 
     struct {
         PFN_vkGetDeviceProcAddr vkGetDeviceProcAddr;
