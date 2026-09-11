@@ -41,11 +41,39 @@ option(CHIAKI_LIB_MINIUPNPC_EXTERNAL_PROJECT "Build miniupnpc from source via Fe
 set(CHIAKI_VERSION_MAJOR 1)
 set(CHIAKI_VERSION_MINOR 10)
 set(CHIAKI_VERSION_PATCH 0)
-# Custom fork suffix (semver pre-release style, e.g. "-gyrofix"). Kept separate from
+# Custom fork suffix (semver pre-release style, e.g. "-dsfix"). Kept separate from
 # the numeric triple so the Windows version resource (chiaking.rc.in) and CPack
 # versions remain pure numeric.
-set(CHIAKI_VERSION_SUFFIX "-gyrofix")
-set(CHIAKI_VERSION ${CHIAKI_VERSION_MAJOR}.${CHIAKI_VERSION_MINOR}.${CHIAKI_VERSION_PATCH}${CHIAKI_VERSION_SUFFIX})
+set(CHIAKI_VERSION_SUFFIX "-dsfix")
+
+# Git short hash as a build fingerprint, tagged "-dirty" when the working tree
+# has uncommitted changes. Embedded in the version string and used to isolate
+# the per-build shader cache so no two builds/backends share a cache file.
+execute_process(
+	COMMAND git rev-parse --short=8 HEAD
+	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+	OUTPUT_VARIABLE CHIAKI_GIT_SHORTHASH
+	OUTPUT_STRIP_TRAILING_WHITESPACE
+	ERROR_QUIET
+)
+set(CHIAKI_GIT_DIRTY "")
+if(CHIAKI_GIT_SHORTHASH)
+	execute_process(
+		COMMAND git status --porcelain
+		WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+		OUTPUT_VARIABLE _chaki_git_dirty
+		ERROR_QUIET
+	)
+	if(_chaki_git_dirty)
+		set(CHIAKI_GIT_DIRTY "-dirty")
+	endif()
+endif()
+set(CHIAKI_GIT_VERSION "${CHIAKI_GIT_SHORTHASH}${CHIAKI_GIT_DIRTY}")
+if(CHIAKI_GIT_SHORTHASH)
+	set(CHIAKI_VERSION ${CHIAKI_VERSION_MAJOR}.${CHIAKI_VERSION_MINOR}.${CHIAKI_VERSION_PATCH}${CHIAKI_VERSION_SUFFIX}-${CHIAKI_GIT_SHORTHASH})
+else()
+	set(CHIAKI_VERSION ${CHIAKI_VERSION_MAJOR}.${CHIAKI_VERSION_MINOR}.${CHIAKI_VERSION_PATCH}${CHIAKI_VERSION_SUFFIX})
+endif()
 
 set(CPACK_PACKAGE_NAME "chiaki-ng")
 set(CPACK_PACKAGE_DESCRIPTION "Open Source PlayStation Remote Play client for Linux, Mac, and Windows")
@@ -135,29 +163,6 @@ add_subdirectory(third-party)
 
 add_definitions(-DCHIAKI_VERSION_MAJOR=${CHIAKI_VERSION_MAJOR} -DCHIAKI_VERSION_MINOR=${CHIAKI_VERSION_MINOR} -DCHIAKI_VERSION_PATCH=${CHIAKI_VERSION_PATCH} -DCHIAKI_VERSION=\"${CHIAKI_VERSION}\")
 
-# Build fingerprint for shader-cache isolation: git short hash, tagged "-dirty"
-# when the tree has uncommitted changes. Guards against same-version builds with
-# different shader/FFmpeg/codec code path polluting one shared pl_shader cache file.
-set(CHIAKI_GIT_VERSION "")
-execute_process(
-	COMMAND git rev-parse --short=8 HEAD
-	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-	OUTPUT_VARIABLE CHIAKI_GIT_HEAD
-	OUTPUT_STRIP_TRAILING_WHITESPACE
-	ERROR_QUIET
-)
-if(CHIAKI_GIT_HEAD)
-	set(CHIAKI_GIT_VERSION "${CHIAKI_GIT_HEAD}")
-	execute_process(
-		COMMAND git status --porcelain
-		WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-		OUTPUT_VARIABLE CHIAKI_GIT_DIRTY
-		ERROR_QUIET
-	)
-	if(CHIAKI_GIT_DIRTY)
-		string(APPEND CHIAKI_GIT_VERSION "-dirty")
-	endif()
-endif()
 add_definitions(-DCHIAKI_GIT_VERSION=\"${CHIAKI_GIT_VERSION}\")
 
 if(CHIAKI_LIB_ENABLE_MBEDTLS)
