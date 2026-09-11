@@ -31,17 +31,19 @@ An open source PlayStation remote play project serving as the next-generation of
 - Added auto inverse tone-mapping option / 新增自动逆色调映射选项
 - Added "Target Peak HDR Only" option based on client display HDR, not source / 新增 Target Peak HDR Only 选项，仅基于客户端显示端 HDR 而非源信号
 - Fixed libplacebo HDR transfer detection using `PL_COLOR_TRC_*` / 修正 libplacebo HDR 传输曲线检测（使用 `PL_COLOR_TRC_*`）
+- Only use an HDR10 swapchain when the desktop is actually in HDR mode, avoiding black frames on SDR desktops / 仅当桌面处于 HDR 模式时才使用 HDR10 交换链，避免 SDR 桌面下黑帧
 
 ### Video Quality & Stability / 画质与稳定性
 
-- Added RAVU Lite r4 spatial upscaler option / 新增 RAVU Lite r4 空间缩放选项
 - Paced the present loop to the video frame rate with backlog-aware catch-up, reducing GPU load and stutter / 显示循环与视频帧率同步并带背压感知追赶，降低 GPU 占用与卡顿
-- Gated the present fast-path on stale backlog to break the latch on high-refresh monitors (e.g. 160 Hz) / 积压过期时关闭快速呈现路径，修复高刷新率显示器（如 160 Hz）上的画面卡死
+- Added a D3D11 render backend on Windows with d3d11va zero-copy decode (plus black-window and OpenGL-surface fixes) / Windows 下新增 D3D11 渲染后端并支持 d3d11va 零拷贝解码（附带黑屏与 OpenGL 表面相关修复）
+- Isolated the compiled-pipeline shader cache per render backend and build, preventing a corrupted session from polluting subsequent ones / 渲染着色器缓存按后端与构建版本隔离，避免一次异常会话污染后续会话
 - Flush renderer cache on video preset switch so heavy presets (e.g. FSRCNNX) release GPU after switching away / 切换视频预设时清空渲染器缓存，重型预设（如 FSRCNNX）切走后不再占用 GPU
 - Clamped placebo queue depth floor to 2 to avoid video freeze while keeping single in-flight frame latency / 呈现队列下限钳制为 2，既保持单帧低延迟又避免画面冻结
 - Fixed use-after-free on session teardown and quick controller disconnect / 修复会话销毁与快速断开手柄时的使用后释放（UAF）
 - Destroy user shader hooks before GPU teardown to avoid exit crash touching freed GPU memory / 退出前先销毁用户着色器钩子，避免访问已释放 GPU 内存导致崩溃
 - Stops the render loop after the stream exits to avoid stuck GPU usage / 退出流后停止渲染循环，避免 GPU 占用卡住
+- Added an optional GPU video-engine (VC0/VCN) usage monitor for diagnosing decode-engine spikes, enabled via `CHIAKI_GPU_MONITOR=1` / 新增可选 GPU 视频引擎（VC0/VCN）占用监控，用于排查解码引擎占用异常，通过 `CHIAKI_GPU_MONITOR=1` 开启
 
 ### UI / 界面
 
