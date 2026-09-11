@@ -70,6 +70,7 @@ class GpuEngineMonitor : public QObject
 		int ring_size_ = 0;
 		qint64 last_flush_ms_ = 0;
 		qint64 last_pids_refresh_ms_ = 0;
+		int ticks_since_periodic_ = 0;
 
 		// Accepted PIDs (current process + descendants) whose GPU engine
 		// instances the monitor attributes to this client.

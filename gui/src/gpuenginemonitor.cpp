@@ -225,7 +225,8 @@ bool GpuEngineMonitor::collectUtil(EngineSample &out)
 		const QString eng = instanceEngineType(name);
 		if (u > max_util)
 			max_util = u;
-		if (eng.contains(QStringLiteral("VideoDecode"), Qt::CaseInsensitive)) {
+		if (eng.contains(QStringLiteral("VideoDecode"), Qt::CaseInsensitive) ||
+			eng.contains(QStringLiteral("Video Codec"), Qt::CaseInsensitive)) {
 			if (u > max_vdec)
 				max_vdec = u;
 		} else if (eng.contains(QStringLiteral("VideoEncode"), Qt::CaseInsensitive)) {
@@ -304,6 +305,17 @@ void GpuEngineMonitor::tick()
 		ring_[ (ring_head_ - 3 + kRingCapacity) % kRingCapacity ].utilized >= kSpikeThreshold;
 
 	if ((sudden_rise || sustained) && (now - last_flush_ms_) >= kFlushCooldownMs) {
+		last_flush_ms_ = now;
+		QString pipeline_ctx;
+		if (pipeline_snapshot_)
+			pipeline_snapshot_(s, pipeline_ctx);
+		flushSnapshot(s, pipeline_ctx, prev_mean);
+	}
+	// Periodic baseline snapshot (healthy-state visibility): the spike path
+	// above only fires on high utilization, leaving geometry/queue context
+	// blind during normal operation. Log every 10th tick (~5 s at 500 ms).
+	if (++ticks_since_periodic_ >= 10) {
+		ticks_since_periodic_ = 0;
 		last_flush_ms_ = now;
 		QString pipeline_ctx;
 		if (pipeline_snapshot_)

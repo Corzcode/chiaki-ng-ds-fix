@@ -2382,7 +2382,11 @@ renderer_backend_ready:
               << QStringLiteral("src=%1x%2").arg(last_src_w.loadRelaxed()).arg(last_src_h.loadRelaxed())
               << QStringLiteral("dst=%1x%2").arg(last_dst_w.loadRelaxed()).arg(last_dst_h.loadRelaxed())
               << QStringLiteral("swap=%1x%2").arg(last_swap_w.loadRelaxed()).arg(last_swap_h.loadRelaxed())
-              << QStringLiteral("ref=%1").arg(refresh, 0, 'f', 0);
+              << QStringLiteral("ref=%1").arg(refresh, 0, 'f', 0)
+              << QStringLiteral("rc=%1").arg(render_count_total.loadRelaxed())
+              << QStringLiteral("sc=%1").arg(sched_count_total.loadRelaxed())
+              << QStringLiteral("sb=%1").arg(sched_backlog_count.loadRelaxed())
+              << QStringLiteral("mix=%1").arg(last_mix_frames.loadRelaxed());
         out = parts.join(QLatin1Char(' '));
     });
 
@@ -2573,6 +2577,9 @@ void QmlMainWindow::scheduleUpdate()
         bool backlog = false;
         if (has_video)
             backlog = hasPendingFrame();
+        sched_count_total.fetchAndAddRelaxed(1);
+        if (backlog)
+            sched_backlog_count.fetchAndAddRelaxed(1);
 
         int interval_ms;
         if (!has_video) {
@@ -3049,6 +3056,7 @@ void QmlMainWindow::render()
         RenderActiveGuard(QAtomicInteger<int> &flag) : flag(flag) { flag.storeRelease(1); }
         ~RenderActiveGuard() { flag.storeRelease(0); }
     } render_guard(render_active);
+    render_count_total.fetchAndAddRelaxed(1);
 
     bool schedule_next_update = false;
     auto finalize_render = [this]() {
@@ -3250,6 +3258,7 @@ void QmlMainWindow::render()
             break;
         }
     }
+    last_mix_frames.storeRelaxed(frame_mix.num_frames);
     refreshPendingFrameAge();
 
     if (render_backend == RenderBackend::OpenGL && quick_need_render.loadRelaxed()) {
