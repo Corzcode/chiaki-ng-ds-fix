@@ -420,10 +420,36 @@ static AVFrame *make_fallback_snapshot_frame(const AVFrame *frame)
     return copy;
 }
 
-static QString shader_cache_path()
+static const char *cache_backend_tag(RenderBackend backend)
 {
-    static QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/pl_shader.cache";
-    return path;
+	switch (backend) {
+	case RenderBackend::Vulkan:
+		return "vulkan";
+	case RenderBackend::OpenGL:
+		return "opengl";
+#if defined(Q_OS_WIN)
+	case RenderBackend::D3D11:
+		return "d3d11";
+#endif
+	}
+	return "unknown";
+}
+
+// Persist libplacebo's compiled-pipeline cache in a per-backend, per-build file.
+// A single shared file gets polluted across Vulkan/GL sessions and across builds
+// with differing shader/FFmpeg paths (a classic source of cross-session bloat),
+// so key the filename on backend + build fingerprint to keep them isolated.
+static QString shader_cache_path(const char *backend_tag)
+{
+	QString build;
+#if defined(CHIAKI_GIT_VERSION)
+	build = QString::fromUtf8(CHIAKI_GIT_VERSION);
+#endif
+	if (build.isEmpty())
+		build = QStringLiteral(CHIAKI_VERSION);
+	QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+		+ QStringLiteral("/pl_shader_%1_%2.cache").arg(QString::fromUtf8(backend_tag), build);
+	return path;
 }
 
 
@@ -651,7 +677,7 @@ QmlMainWindow::~QmlMainWindow()
         delete render_thread->parent();
     delete qml_engine;
 
-    FILE *file = fopen(qPrintable(shader_cache_path()), "wb");
+    FILE *file = fopen(qPrintable(shader_cache_path(cache_backend_tag(render_backend))), "wb");
     if (file) {
         pl_cache_save_file(placebo_cache, file);
         fclose(file);
@@ -2176,7 +2202,7 @@ renderer_backend_ready:
     };
     placebo_cache = pl_cache_create(&cache_params);
     pl_gpu_set_cache(placeboGpu(), placebo_cache);
-    FILE *file = fopen(qPrintable(shader_cache_path()), "rb");
+    FILE *file = fopen(qPrintable(shader_cache_path(cache_backend_tag(render_backend))), "rb");
     if (file) {
         pl_cache_load_file(placebo_cache, file);
         fclose(file);

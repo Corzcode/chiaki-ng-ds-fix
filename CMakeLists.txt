@@ -135,6 +135,31 @@ add_subdirectory(third-party)
 
 add_definitions(-DCHIAKI_VERSION_MAJOR=${CHIAKI_VERSION_MAJOR} -DCHIAKI_VERSION_MINOR=${CHIAKI_VERSION_MINOR} -DCHIAKI_VERSION_PATCH=${CHIAKI_VERSION_PATCH} -DCHIAKI_VERSION=\"${CHIAKI_VERSION}\")
 
+# Build fingerprint for shader-cache isolation: git short hash, tagged "-dirty"
+# when the tree has uncommitted changes. Guards against same-version builds with
+# different shader/FFmpeg/codec code path polluting one shared pl_shader cache file.
+set(CHIAKI_GIT_VERSION "")
+execute_process(
+	COMMAND git rev-parse --short=8 HEAD
+	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+	OUTPUT_VARIABLE CHIAKI_GIT_HEAD
+	OUTPUT_STRIP_TRAILING_WHITESPACE
+	ERROR_QUIET
+)
+if(CHIAKI_GIT_HEAD)
+	set(CHIAKI_GIT_VERSION "${CHIAKI_GIT_HEAD}")
+	execute_process(
+		COMMAND git status --porcelain
+		WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+		OUTPUT_VARIABLE CHIAKI_GIT_DIRTY
+		ERROR_QUIET
+	)
+	if(CHIAKI_GIT_DIRTY)
+		string(APPEND CHIAKI_GIT_VERSION "-dirty")
+	endif()
+endif()
+add_definitions(-DCHIAKI_GIT_VERSION=\"${CHIAKI_GIT_VERSION}\")
+
 if(CHIAKI_LIB_ENABLE_MBEDTLS)
 	add_definitions(-DCHIAKI_LIB_ENABLE_MBEDTLS)
 	if(CHIAKI_LIB_MBEDTLS_EXTERNAL_PROJECT)
